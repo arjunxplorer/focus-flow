@@ -1,0 +1,172 @@
+import { useEffect, useState } from "react";
+import { Flame, Clock, Coffee } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+
+interface SectionStat { id: string; name: string; seconds: number }
+
+export default function Dashboard() {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [streak, setStreak] = useState(0);
+  const [totalSeconds, setTotalSeconds] = useState(0);
+  const [perSection, setPerSection] = useState<SectionStat[]>([]);
+  const [hasAny, setHasAny] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!user) return;
+      setLoading(true);
+      const [tasksRes, sessionsRes, sectionsRes] = await Promise.all([
+        supabase.from("tasks").select("id,section_id,completed_at").eq("completed", true),
+        supabase.from("focus_sessions").select("duration_seconds,task_id"),
+        supabase.from("sections").select("id,name"),
+      ]);
+      const tasks = tasksRes.data ?? [];
+      const sessions = sessionsRes.data ?? [];
+      const sections = sectionsRes.data ?? [];
+
+      setHasAny(tasks.length > 0 || sessions.length > 0);
+
+      // Streak: count consecutive days ending today (or yesterday) with a completed task.
+      const days = new Set<string>();
+      tasks.forEach((t) => {
+        if (t.completed_at) days.add(new Date(t.completed_at).toISOString().slice(0, 10));
+      });
+      let s = 0;
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      const yesterday = new Date(now.getTime() - 86400000).toISOString().slice(0, 10);
+      let cursor = days.has(today) ? new Date(now) : days.has(yesterday) ? new Date(now.getTime() - 86400000) : null;
+      while (cursor) {
+        const key = cursor.toISOString().slice(0, 10);
+        if (days.has(key)) {
+          s++;
+          cursor = new Date(cursor.getTime() - 86400000);
+        } else break;
+      }
+      setStreak(s);
+
+      // Total seconds
+      const total = sessions.reduce((acc, x) => acc + (x.duration_seconds ?? 0), 0);
+      setTotalSeconds(total);
+
+      // Per-section: map task_id -> section_id
+      const taskSection = new Map<string, string | null>();
+      const allTasksRes = await supabase.from("tasks").select("id,section_id");
+      (allTasksRes.data ?? []).forEach((t) => taskSection.set(t.id, t.section_id));
+      const bySection = new Map<string, number>();
+      sessions.forEach((sess) => {
+        const sid = sess.task_id ? taskSection.get(sess.task_id) : null;
+        if (!sid) return;
+        bySection.set(sid, (bySection.get(sid) ?? 0) + (sess.duration_seconds ?? 0));
+      });
+      const stats: SectionStat[] = sections
+        .map((sec) => ({ id: sec.id, name: sec.name, seconds: bySection.get(sec.id) ?? 0 }))
+        .sort((a, b) => b.seconds - a.seconds);
+      setPerSection(stats);
+
+      setLoading(false);
+    };
+    load();
+  }, [user]);
+
+  const totalHours = (totalSeconds / 3600).toFixed(1);
+  const maxSec = Math.max(1, ...perSection.map((p) => p.seconds));
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="h-32 rounded-3xl shimmer-warm" />
+          <div className="h-32 rounded-3xl shimmer-warm" />
+        </div>
+        <div className="h-48 rounded-3xl shimmer-warm" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-4xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-cream">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">A look at your time at the counter.</p>
+      </div>
+
+      {!hasAny ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-3xl bg-card/60 px-6 py-16 text-center shadow-amber">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+            <Coffee className="h-6 w-6" />
+          </div>
+          <h2 className="text-lg font-semibold text-cream">Nothing brewed yet</h2>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Complete a focus session and your stats will start filling up here.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <StatCard
+              icon={<Flame className="h-5 w-5" />}
+              label="Current streak"
+              value={`${streak} ${streak === 1 ? "day" : "days"}`}
+              hint="Complete a task today to keep it warm."
+            />
+            <StatCard
+              icon={<Clock className="h-5 w-5" />}
+              label="Total focused"
+              value={`${totalHours}h`}
+              hint="Across every session you've finished."
+            />
+          </div>
+
+          <div className="mt-4 rounded-3xl bg-card p-6 shadow-amber">
+            <div className="mb-4 flex items-baseline justify-between">
+              <h2 className="text-lg font-semibold text-cream">By section</h2>
+              <span className="text-xs text-muted-foreground">Hours focused</span>
+            </div>
+            {perSection.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No sections yet — create one in the sidebar.</p>
+            ) : (
+              <ul className="space-y-3.5">
+                {perSection.map((p) => {
+                  const hours = (p.seconds / 3600).toFixed(1);
+                  const pct = (p.seconds / maxSec) * 100;
+                  return (
+                    <li key={p.id}>
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="text-cream">{p.name}</span>
+                        <span className="font-mono tabular-nums text-muted-foreground">{hours}h</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-primary to-amber-deep transition-all"
+                          style={{ width: `${Math.max(pct, p.seconds > 0 ? 4 : 0)}%` }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-3xl bg-card p-6 shadow-amber transition hover:bg-surface-raised">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          {icon}
+        </span>
+        <span className="text-xs uppercase tracking-wider">{label}</span>
+      </div>
+      <div className="mt-4 text-4xl font-semibold text-cream">{value}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+    </div>
+  );
+}
