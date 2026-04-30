@@ -169,6 +169,25 @@ export function AppSidebar() {
                         className="h-8 rounded-lg bg-secondary border-0"
                       />
                     </div>
+                  ) : sections.length >= MAX_SECTIONS ? (
+                    <TooltipProvider delayDuration={150}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <SidebarMenuButton
+                              disabled
+                              className="rounded-xl text-muted-foreground/50 cursor-not-allowed"
+                            >
+                              <Plus className="h-4 w-4" />
+                              <span>New section</span>
+                            </SidebarMenuButton>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="rounded-lg bg-popover text-cream text-xs">
+                          Maximum {MAX_SECTIONS} sections reached
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   ) : (
                     <SidebarMenuButton onClick={() => setAdding(true)} className="rounded-xl text-muted-foreground hover:text-cream">
                       <Plus className="h-4 w-4" />
