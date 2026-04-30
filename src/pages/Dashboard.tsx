@@ -30,7 +30,7 @@ export default function Dashboard() {
       const sections = sectionsRes.data ?? [];
       setSessions(sessionRows);
 
-      setHasAny(tasks.length > 0 || sessions.length > 0);
+      setHasAny(tasks.length > 0 || sessionRows.length > 0);
 
       // Streak: count consecutive days ending today (or yesterday) with a completed task.
       const days = new Set<string>();
@@ -52,7 +52,7 @@ export default function Dashboard() {
       setStreak(s);
 
       // Total seconds
-      const total = sessions.reduce((acc, x) => acc + (x.duration_seconds ?? 0), 0);
+      const total = sessionRows.reduce((acc, x) => acc + (x.duration_seconds ?? 0), 0);
       setTotalSeconds(total);
 
       // Per-section: map task_id -> section_id
@@ -60,7 +60,7 @@ export default function Dashboard() {
       const allTasksRes = await supabase.from("tasks").select("id,section_id");
       (allTasksRes.data ?? []).forEach((t) => taskSection.set(t.id, t.section_id));
       const bySection = new Map<string, number>();
-      sessions.forEach((sess) => {
+      sessionRows.forEach((sess) => {
         const sid = sess.task_id ? taskSection.get(sess.task_id) : null;
         if (!sid) return;
         bySection.set(sid, (bySection.get(sid) ?? 0) + (sess.duration_seconds ?? 0));
