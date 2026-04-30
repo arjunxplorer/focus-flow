@@ -221,9 +221,9 @@ function TaskCard({
   onDelete: () => void;
 }) {
   return (
-    <div className={`group flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 shadow-amber transition hover:bg-surface-raised ${task.completed ? "opacity-60" : ""}`}>
+    <div className="group flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 shadow-amber transition hover:bg-surface-raised">
       <div className="min-w-0 flex-1">
-        <div className={`truncate font-medium text-cream ${task.completed ? "line-through text-muted-foreground" : ""}`}>
+        <div className="truncate font-medium text-cream">
           {task.title}
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
@@ -239,21 +239,19 @@ function TaskCard({
         </div>
       </div>
 
-      {!task.completed && (
-        <Button
-          size="sm"
-          onClick={onStart}
-          className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber"
-        >
-          <Play className="mr-1 h-3.5 w-3.5" /> Start
-        </Button>
-      )}
+      <Button
+        size="sm"
+        onClick={onStart}
+        className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber"
+      >
+        <Play className="mr-1 h-3.5 w-3.5" /> Start
+      </Button>
       <Button
         size="icon"
         variant="ghost"
         onClick={onComplete}
-        className={`h-9 w-9 rounded-xl ${task.completed ? "text-primary" : "text-muted-foreground hover:text-cream"}`}
-        aria-label="Toggle complete"
+        className="h-9 w-9 rounded-xl text-muted-foreground hover:text-cream"
+        aria-label="Mark complete"
       >
         <Check className="h-4 w-4" />
       </Button>
