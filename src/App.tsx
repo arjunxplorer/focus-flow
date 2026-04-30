@@ -8,6 +8,7 @@ import { TimerProvider } from "@/contexts/TimerContext";
 import { AppLayout } from "@/components/AppLayout";
 import Tasks from "./pages/Tasks";
 import Dashboard from "./pages/Dashboard";
+import History from "./pages/History";
 import Timer from "./pages/Timer";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound.tsx";
@@ -27,6 +28,7 @@ const App = () => (
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Tasks />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/history" element={<History />} />
                 <Route path="/timer/:taskId" element={<Timer />} />
               </Route>
               <Route path="*" element={<NotFound />} />

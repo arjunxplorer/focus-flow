@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Coffee, ListChecks, BarChart3, Plus, LogOut, Tag, Trash2 } from "lucide-react";
+import { Coffee, ListChecks, BarChart3, Clock, Plus, LogOut, Tag, Trash2 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -107,6 +107,14 @@ export function AppSidebar() {
                   <NavLink to="/dashboard" className="flex items-center gap-3">
                     <BarChart3 className="h-4 w-4" />
                     {!collapsed && <span>Dashboard</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/history"} className="rounded-xl data-[active=true]:bg-primary/10 data-[active=true]:text-primary">
+                  <NavLink to="/history" className="flex items-center gap-3">
+                    <Clock className="h-4 w-4" />
+                    {!collapsed && <span>History</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

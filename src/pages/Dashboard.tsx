@@ -3,6 +3,7 @@ import { Flame, Clock, Coffee } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { FocusHeatmap } from "@/components/FocusHeatmap";
+import { SectionDonut } from "@/components/SectionDonut";
 
 interface SectionStat { id: string; name: string; seconds: number }
 interface SessionRow { started_at: string | null; duration_seconds: number; task_id: string | null }
@@ -76,7 +77,6 @@ export default function Dashboard() {
   }, [user]);
 
   const totalHours = (totalSeconds / 3600).toFixed(1);
-  const maxSec = Math.max(1, ...perSection.map((p) => p.seconds));
 
   if (loading) {
     return (
@@ -133,32 +133,13 @@ export default function Dashboard() {
               <h2 className="text-lg font-semibold text-cream">By section</h2>
               <span className="text-xs text-muted-foreground">Hours focused</span>
             </div>
-            <p className="mb-4 text-xs text-muted-foreground">
+            <p className="mb-6 text-xs text-muted-foreground">
               Hours are counted from completed timer sessions only.
             </p>
             {perSection.length === 0 ? (
               <p className="text-sm text-muted-foreground">No sections yet — create one in the sidebar.</p>
             ) : (
-              <ul className="space-y-3.5">
-                {perSection.map((p) => {
-                  const hours = (p.seconds / 3600).toFixed(1);
-                  const pct = (p.seconds / maxSec) * 100;
-                  return (
-                    <li key={p.id}>
-                      <div className="mb-1.5 flex items-center justify-between text-sm">
-                        <span className="text-cream">{p.name}</span>
-                        <span className="font-mono tabular-nums text-muted-foreground">{hours}h</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-secondary">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-primary to-amber-deep transition-all"
-                          style={{ width: `${Math.max(pct, p.seconds > 0 ? 4 : 0)}%` }}
-                        />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+              <SectionDonut data={perSection} />
             )}
           </div>
         </>
