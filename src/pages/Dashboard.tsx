@@ -124,11 +124,18 @@ export default function Dashboard() {
             />
           </div>
 
+          <div className="mt-4">
+            <FocusHeatmap sessions={sessions} />
+          </div>
+
           <div className="mt-4 rounded-3xl bg-card p-6 shadow-amber">
-            <div className="mb-4 flex items-baseline justify-between">
+            <div className="mb-1 flex items-baseline justify-between">
               <h2 className="text-lg font-semibold text-cream">By section</h2>
               <span className="text-xs text-muted-foreground">Hours focused</span>
             </div>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Hours are counted from completed timer sessions only.
+            </p>
             {perSection.length === 0 ? (
               <p className="text-sm text-muted-foreground">No sections yet — create one in the sidebar.</p>
             ) : (
