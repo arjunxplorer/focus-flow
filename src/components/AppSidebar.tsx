@@ -16,9 +16,12 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+const MAX_SECTIONS = 6;
 
 export interface Section {
   id: string;
@@ -48,9 +51,18 @@ export function AppSidebar() {
 
   const addSection = async () => {
     if (!user || !name.trim()) return;
+    if (sections.length >= MAX_SECTIONS) {
+      toast.error(`You can have at most ${MAX_SECTIONS} sections.`);
+      return;
+    }
     const { error } = await supabase.from("sections").insert({ user_id: user.id, name: name.trim() });
-    if (error) toast.error(error.message);
-    else {
+    if (error) {
+      if (error.message?.includes("SECTION_LIMIT_REACHED")) {
+        toast.error(`You can have at most ${MAX_SECTIONS} sections.`);
+      } else {
+        toast.error(error.message);
+      }
+    } else {
       setName("");
       setAdding(false);
       load();
