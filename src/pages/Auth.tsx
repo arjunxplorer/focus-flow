@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Coffee } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +13,18 @@ import { toast } from "sonner";
 export default function Auth() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [invite, setInvite] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Pre-fill invite from URL (?invite=BREW-XXXX)
+  useEffect(() => {
+    const fromUrl = searchParams.get("invite");
+    if (fromUrl) setInvite(fromUrl.toUpperCase());
+  }, [searchParams]);
 
   if (loading) return null;
   if (user) return <Navigate to="/" replace />;
@@ -31,22 +40,45 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!invite.trim()) {
+      toast.error("An invite code is required to create an account.");
+      return;
+    }
     setBusy(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: window.location.origin },
     });
+    if (error) {
+      setBusy(false);
+      toast.error(error.message);
+      return;
+    }
+
+    // If a session was returned (auto-confirm on), redeem immediately.
+    if (data.session) {
+      const res = await supabase.rpc("redeem_invite", { _code: invite.trim().toUpperCase() });
+      setBusy(false);
+      const out = res.data as { ok: boolean; error?: string } | null;
+      if (res.error || !out?.ok) {
+        toast.error(out?.error ?? "Could not redeem invite. You can try again from the next screen.");
+      }
+      navigate("/");
+      return;
+    }
+
     setBusy(false);
-    if (error) toast.error(error.message);
-    else toast.success("Check your inbox to confirm your email.");
+    toast.success("Check your inbox to confirm your email, then sign in to redeem your invite.");
   };
 
   const handleGoogle = async () => {
     setBusy(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
+    // Pass the invite code through the OAuth round-trip via the redirect URL.
+    const redirectUrl = invite.trim()
+      ? `${window.location.origin}/auth?invite=${encodeURIComponent(invite.trim().toUpperCase())}`
+      : window.location.origin;
+    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: redirectUrl });
     if (result.error) {
       setBusy(false);
       toast.error("Could not sign in with Google.");
@@ -95,6 +127,17 @@ export default function Auth() {
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-1.5">
+                  <Label htmlFor="invite-up">Invite code</Label>
+                  <Input
+                    id="invite-up"
+                    required
+                    value={invite}
+                    onChange={(e) => setInvite(e.target.value.toUpperCase())}
+                    placeholder="BREW-XXXX"
+                    className="rounded-xl border-0 bg-secondary font-mono tracking-wider"
+                  />
+                </div>
+                <div className="space-y-1.5">
                   <Label htmlFor="email-up">Email</Label>
                   <Input id="email-up" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl border-0 bg-secondary" />
                 </div>
@@ -124,6 +167,9 @@ export default function Auth() {
           >
             Continue with Google
           </Button>
+          <p className="mt-3 text-center text-[11px] text-muted-foreground">
+            New here? Enter your invite code above before continuing with Google.
+          </p>
         </div>
       </div>
     </div>

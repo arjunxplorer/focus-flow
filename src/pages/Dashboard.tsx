@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Flame, Clock, Coffee } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { FocusHeatmap } from "@/components/FocusHeatmap";
 
 interface SectionStat { id: string; name: string; seconds: number }
+interface SessionRow { started_at: string | null; duration_seconds: number; task_id: string | null }
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -11,6 +13,7 @@ export default function Dashboard() {
   const [streak, setStreak] = useState(0);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [perSection, setPerSection] = useState<SectionStat[]>([]);
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [hasAny, setHasAny] = useState(false);
 
   useEffect(() => {
@@ -19,14 +22,15 @@ export default function Dashboard() {
       setLoading(true);
       const [tasksRes, sessionsRes, sectionsRes] = await Promise.all([
         supabase.from("tasks").select("id,section_id,completed_at").eq("completed", true),
-        supabase.from("focus_sessions").select("duration_seconds,task_id"),
+        supabase.from("focus_sessions").select("started_at,duration_seconds,task_id"),
         supabase.from("sections").select("id,name"),
       ]);
       const tasks = tasksRes.data ?? [];
-      const sessions = sessionsRes.data ?? [];
+      const sessionRows = (sessionsRes.data ?? []) as SessionRow[];
       const sections = sectionsRes.data ?? [];
+      setSessions(sessionRows);
 
-      setHasAny(tasks.length > 0 || sessions.length > 0);
+      setHasAny(tasks.length > 0 || sessionRows.length > 0);
 
       // Streak: count consecutive days ending today (or yesterday) with a completed task.
       const days = new Set<string>();
@@ -48,7 +52,7 @@ export default function Dashboard() {
       setStreak(s);
 
       // Total seconds
-      const total = sessions.reduce((acc, x) => acc + (x.duration_seconds ?? 0), 0);
+      const total = sessionRows.reduce((acc, x) => acc + (x.duration_seconds ?? 0), 0);
       setTotalSeconds(total);
 
       // Per-section: map task_id -> section_id
@@ -56,7 +60,7 @@ export default function Dashboard() {
       const allTasksRes = await supabase.from("tasks").select("id,section_id");
       (allTasksRes.data ?? []).forEach((t) => taskSection.set(t.id, t.section_id));
       const bySection = new Map<string, number>();
-      sessions.forEach((sess) => {
+      sessionRows.forEach((sess) => {
         const sid = sess.task_id ? taskSection.get(sess.task_id) : null;
         if (!sid) return;
         bySection.set(sid, (bySection.get(sid) ?? 0) + (sess.duration_seconds ?? 0));
@@ -120,11 +124,18 @@ export default function Dashboard() {
             />
           </div>
 
+          <div className="mt-4">
+            <FocusHeatmap sessions={sessions} />
+          </div>
+
           <div className="mt-4 rounded-3xl bg-card p-6 shadow-amber">
-            <div className="mb-4 flex items-baseline justify-between">
+            <div className="mb-1 flex items-baseline justify-between">
               <h2 className="text-lg font-semibold text-cream">By section</h2>
               <span className="text-xs text-muted-foreground">Hours focused</span>
             </div>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Hours are counted from completed timer sessions only.
+            </p>
             {perSection.length === 0 ? (
               <p className="text-sm text-muted-foreground">No sections yet — create one in the sidebar.</p>
             ) : (

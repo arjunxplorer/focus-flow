@@ -52,6 +52,33 @@ export type Database = {
           },
         ]
       }
+      invites: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string | null
+          used: boolean
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at?: string | null
+          used?: boolean
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string | null
+          used?: boolean
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -137,7 +164,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_invite_code: { Args: never; Returns: string }
+      generate_invite_codes: { Args: { _n: number }; Returns: number }
+      redeem_invite: { Args: { _code: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never

@@ -4,12 +4,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { ActiveTimerBanner } from "./ActiveTimerBanner";
+import { InviteGate } from "./InviteGate";
 
 export function AppLayout({ children }: { children?: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, inviteRedeemed } = useAuth();
   const location = useLocation();
 
-  if (loading) {
+  if (loading || (user && inviteRedeemed === null)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-10 w-10 animate-pulse rounded-full bg-primary/30" />
@@ -19,6 +20,10 @@ export function AppLayout({ children }: { children?: ReactNode }) {
 
   if (!user) {
     return <Navigate to="/auth" replace state={{ from: location }} />;
+  }
+
+  if (inviteRedeemed === false) {
+    return <InviteGate />;
   }
 
   return (

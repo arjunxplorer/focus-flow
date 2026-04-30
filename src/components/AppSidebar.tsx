@@ -16,9 +16,12 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+const MAX_SECTIONS = 6;
 
 export interface Section {
   id: string;
@@ -48,9 +51,18 @@ export function AppSidebar() {
 
   const addSection = async () => {
     if (!user || !name.trim()) return;
+    if (sections.length >= MAX_SECTIONS) {
+      toast.error(`You can have at most ${MAX_SECTIONS} sections.`);
+      return;
+    }
     const { error } = await supabase.from("sections").insert({ user_id: user.id, name: name.trim() });
-    if (error) toast.error(error.message);
-    else {
+    if (error) {
+      if (error.message?.includes("SECTION_LIMIT_REACHED")) {
+        toast.error(`You can have at most ${MAX_SECTIONS} sections.`);
+      } else {
+        toast.error(error.message);
+      }
+    } else {
       setName("");
       setAdding(false);
       load();
@@ -157,6 +169,25 @@ export function AppSidebar() {
                         className="h-8 rounded-lg bg-secondary border-0"
                       />
                     </div>
+                  ) : sections.length >= MAX_SECTIONS ? (
+                    <TooltipProvider delayDuration={150}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <SidebarMenuButton
+                              disabled
+                              className="rounded-xl text-muted-foreground/50 cursor-not-allowed"
+                            >
+                              <Plus className="h-4 w-4" />
+                              <span>New section</span>
+                            </SidebarMenuButton>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="rounded-lg bg-popover text-cream text-xs">
+                          Maximum {MAX_SECTIONS} sections reached
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   ) : (
                     <SidebarMenuButton onClick={() => setAdding(true)} className="rounded-xl text-muted-foreground hover:text-cream">
                       <Plus className="h-4 w-4" />
