@@ -45,8 +45,16 @@ export default function Tasks() {
   const load = async () => {
     if (!user) return;
     setLoading(true);
+    // Today's start in user's local timezone
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
     const [t, s] = await Promise.all([
-      supabase.from("tasks").select("id,title,duration_minutes,completed,section_id").order("created_at", { ascending: false }),
+      supabase
+        .from("tasks")
+        .select("id,title,duration_minutes,completed,section_id")
+        .eq("completed", false)
+        .gte("created_at", startOfDay.toISOString())
+        .order("created_at", { ascending: false }),
       supabase.from("sections").select("id,name"),
     ]);
     setTasks(t.data ?? []);
@@ -213,9 +221,9 @@ function TaskCard({
   onDelete: () => void;
 }) {
   return (
-    <div className={`group flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 shadow-amber transition hover:bg-surface-raised ${task.completed ? "opacity-60" : ""}`}>
+    <div className="group flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 shadow-amber transition hover:bg-surface-raised">
       <div className="min-w-0 flex-1">
-        <div className={`truncate font-medium text-cream ${task.completed ? "line-through text-muted-foreground" : ""}`}>
+        <div className="truncate font-medium text-cream">
           {task.title}
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
@@ -231,21 +239,19 @@ function TaskCard({
         </div>
       </div>
 
-      {!task.completed && (
-        <Button
-          size="sm"
-          onClick={onStart}
-          className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber"
-        >
-          <Play className="mr-1 h-3.5 w-3.5" /> Start
-        </Button>
-      )}
+      <Button
+        size="sm"
+        onClick={onStart}
+        className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber"
+      >
+        <Play className="mr-1 h-3.5 w-3.5" /> Start
+      </Button>
       <Button
         size="icon"
         variant="ghost"
         onClick={onComplete}
-        className={`h-9 w-9 rounded-xl ${task.completed ? "text-primary" : "text-muted-foreground hover:text-cream"}`}
-        aria-label="Toggle complete"
+        className="h-9 w-9 rounded-xl text-muted-foreground hover:text-cream"
+        aria-label="Mark complete"
       >
         <Check className="h-4 w-4" />
       </Button>
@@ -268,9 +274,9 @@ function EmptyState() {
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
         <Coffee className="h-6 w-6" />
       </div>
-      <h2 className="text-lg font-semibold text-cream">No tasks yet</h2>
+      <h2 className="text-lg font-semibold text-cream">Nothing brewing today</h2>
       <p className="max-w-sm text-sm text-muted-foreground">
-        Brew your first focus session. Add a task above and the kettle's on.
+        Add a task to get started.
       </p>
     </div>
   );
