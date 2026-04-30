@@ -45,8 +45,16 @@ export default function Tasks() {
   const load = async () => {
     if (!user) return;
     setLoading(true);
+    // Today's start in user's local timezone
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
     const [t, s] = await Promise.all([
-      supabase.from("tasks").select("id,title,duration_minutes,completed,section_id").order("created_at", { ascending: false }),
+      supabase
+        .from("tasks")
+        .select("id,title,duration_minutes,completed,section_id")
+        .eq("completed", false)
+        .gte("created_at", startOfDay.toISOString())
+        .order("created_at", { ascending: false }),
       supabase.from("sections").select("id,name"),
     ]);
     setTasks(t.data ?? []);
@@ -268,9 +276,9 @@ function EmptyState() {
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
         <Coffee className="h-6 w-6" />
       </div>
-      <h2 className="text-lg font-semibold text-cream">No tasks yet</h2>
+      <h2 className="text-lg font-semibold text-cream">Nothing brewing today</h2>
       <p className="max-w-sm text-sm text-muted-foreground">
-        Brew your first focus session. Add a task above and the kettle's on.
+        Add a task to get started.
       </p>
     </div>
   );
