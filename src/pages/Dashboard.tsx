@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Flame, Clock, Coffee } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { FocusHeatmap } from "@/components/FocusHeatmap";
 
 interface SectionStat { id: string; name: string; seconds: number }
+interface SessionRow { started_at: string | null; duration_seconds: number; task_id: string | null }
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -11,6 +13,7 @@ export default function Dashboard() {
   const [streak, setStreak] = useState(0);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [perSection, setPerSection] = useState<SectionStat[]>([]);
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [hasAny, setHasAny] = useState(false);
 
   useEffect(() => {
@@ -19,12 +22,13 @@ export default function Dashboard() {
       setLoading(true);
       const [tasksRes, sessionsRes, sectionsRes] = await Promise.all([
         supabase.from("tasks").select("id,section_id,completed_at").eq("completed", true),
-        supabase.from("focus_sessions").select("duration_seconds,task_id"),
+        supabase.from("focus_sessions").select("started_at,duration_seconds,task_id"),
         supabase.from("sections").select("id,name"),
       ]);
       const tasks = tasksRes.data ?? [];
-      const sessions = sessionsRes.data ?? [];
+      const sessionRows = (sessionsRes.data ?? []) as SessionRow[];
       const sections = sectionsRes.data ?? [];
+      setSessions(sessionRows);
 
       setHasAny(tasks.length > 0 || sessions.length > 0);
 
