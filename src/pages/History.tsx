@@ -57,17 +57,16 @@ export default function History() {
   const todayKey = dayKey(now);
   const yesterdayKey = dayKey(new Date(now.getTime() - 86400000));
 
-  // Filter: tasks created before today, OR completed today
+  // History only includes tasks created before today.
+  // Today's tasks (completed or not) live on the Tasks page until midnight.
   const historyTasks = tasks.filter((t) => {
     const createdKey = dayKey(new Date(t.created_at));
-    if (createdKey < todayKey) return true;
-    if (t.completed && t.completed_at && dayKey(new Date(t.completed_at)) === todayKey && createdKey === todayKey) {
-      return true;
-    }
-    return false;
+    return createdKey < todayKey;
   });
 
-  // Group by date
+  // Group by completion date when completed, otherwise by creation date.
+  // This correctly buckets a task created at 11:58pm and finished at 12:02am
+  // under the day it was finished.
   const groups = new Map<string, TaskRow[]>();
   historyTasks.forEach((t) => {
     const refDate = t.completed && t.completed_at ? t.completed_at : t.created_at;

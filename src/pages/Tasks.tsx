@@ -21,6 +21,7 @@ interface Task {
   duration_minutes: number;
   completed: boolean;
   section_id: string | null;
+  created_at?: string;
 }
 interface Section { id: string; name: string }
 
@@ -51,13 +52,17 @@ export default function Tasks() {
     const [t, s] = await Promise.all([
       supabase
         .from("tasks")
-        .select("id,title,duration_minutes,completed,section_id")
-        .eq("completed", false)
+        .select("id,title,duration_minutes,completed,section_id,created_at")
         .gte("created_at", startOfDay.toISOString())
         .order("created_at", { ascending: false }),
       supabase.from("sections").select("id,name"),
     ]);
-    setTasks(t.data ?? []);
+    // Incomplete first, then completed (each group keeps created_at desc).
+    const sorted = (t.data ?? []).slice().sort((a, b) => {
+      if (a.completed === b.completed) return 0;
+      return a.completed ? 1 : -1;
+    });
+    setTasks(sorted);
     setSections(s.data ?? []);
     setLoading(false);
   };
@@ -220,10 +225,19 @@ function TaskCard({
   onComplete: () => void;
   onDelete: () => void;
 }) {
+  const isDone = task.completed;
   return (
-    <div className="group flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 shadow-amber transition hover:bg-surface-raised">
+    <div
+      className={`group flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 shadow-amber transition hover:bg-surface-raised ${
+        isDone ? "opacity-70" : ""
+      }`}
+    >
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium text-cream">
+        <div
+          className={`truncate font-medium ${
+            isDone ? "text-muted-foreground line-through" : "text-cream"
+          }`}
+        >
           {task.title}
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
@@ -239,19 +253,23 @@ function TaskCard({
         </div>
       </div>
 
-      <Button
-        size="sm"
-        onClick={onStart}
-        className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber"
-      >
-        <Play className="mr-1 h-3.5 w-3.5" /> Start
-      </Button>
+      {!isDone && (
+        <Button
+          size="sm"
+          onClick={onStart}
+          className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber"
+        >
+          <Play className="mr-1 h-3.5 w-3.5" /> Start
+        </Button>
+      )}
       <Button
         size="icon"
         variant="ghost"
         onClick={onComplete}
-        className="h-9 w-9 rounded-xl text-muted-foreground hover:text-cream"
-        aria-label="Mark complete"
+        className={`h-9 w-9 rounded-xl ${
+          isDone ? "text-primary hover:text-primary/80" : "text-muted-foreground hover:text-cream"
+        }`}
+        aria-label={isDone ? "Mark incomplete" : "Mark complete"}
       >
         <Check className="h-4 w-4" />
       </Button>
