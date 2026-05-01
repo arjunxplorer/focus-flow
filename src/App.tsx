@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import History from "./pages/History";
 import Timer from "./pages/Timer";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
