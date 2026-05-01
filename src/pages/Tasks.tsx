@@ -225,10 +225,19 @@ function TaskCard({
   onComplete: () => void;
   onDelete: () => void;
 }) {
+  const isDone = task.completed;
   return (
-    <div className="group flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 shadow-amber transition hover:bg-surface-raised">
+    <div
+      className={`group flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 shadow-amber transition hover:bg-surface-raised ${
+        isDone ? "opacity-70" : ""
+      }`}
+    >
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium text-cream">
+        <div
+          className={`truncate font-medium ${
+            isDone ? "text-muted-foreground line-through" : "text-cream"
+          }`}
+        >
           {task.title}
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
@@ -244,19 +253,23 @@ function TaskCard({
         </div>
       </div>
 
-      <Button
-        size="sm"
-        onClick={onStart}
-        className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber"
-      >
-        <Play className="mr-1 h-3.5 w-3.5" /> Start
-      </Button>
+      {!isDone && (
+        <Button
+          size="sm"
+          onClick={onStart}
+          className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber"
+        >
+          <Play className="mr-1 h-3.5 w-3.5" /> Start
+        </Button>
+      )}
       <Button
         size="icon"
         variant="ghost"
         onClick={onComplete}
-        className="h-9 w-9 rounded-xl text-muted-foreground hover:text-cream"
-        aria-label="Mark complete"
+        className={`h-9 w-9 rounded-xl ${
+          isDone ? "text-primary hover:text-primary/80" : "text-muted-foreground hover:text-cream"
+        }`}
+        aria-label={isDone ? "Mark incomplete" : "Mark complete"}
       >
         <Check className="h-4 w-4" />
       </Button>
@@ -269,20 +282,6 @@ function TaskCard({
       >
         <Trash2 className="h-4 w-4" />
       </Button>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-3xl bg-card/60 px-6 py-16 text-center shadow-amber">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-        <Coffee className="h-6 w-6" />
-      </div>
-      <h2 className="text-lg font-semibold text-cream">Nothing brewing today</h2>
-      <p className="max-w-sm text-sm text-muted-foreground">
-        Add a task to get started.
-      </p>
     </div>
   );
 }
