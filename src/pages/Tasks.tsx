@@ -285,3 +285,17 @@ function TaskCard({
     </div>
   );
 }
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-3xl bg-card/60 px-6 py-16 text-center shadow-amber">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+        <Coffee className="h-6 w-6" />
+      </div>
+      <h2 className="text-lg font-semibold text-cream">Nothing brewing today</h2>
+      <p className="max-w-sm text-sm text-muted-foreground">
+        Add a task to get started.
+      </p>
+    </div>
+  );
+}
