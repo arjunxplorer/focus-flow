@@ -19,6 +19,7 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [invite, setInvite] = useState("");
   const [busy, setBusy] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
 
   // Pre-fill invite from URL (?invite=BREW-XXXX)
   useEffect(() => {
