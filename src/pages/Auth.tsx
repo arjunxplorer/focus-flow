@@ -129,19 +129,50 @@ export default function Auth() {
             </TabsList>
 
             <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="email-in">Email</Label>
-                  <Input id="email-in" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl border-0 bg-secondary" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="pw-in">Password</Label>
-                  <Input id="pw-in" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl border-0 bg-secondary" />
-                </div>
-                <Button type="submit" disabled={busy} className="w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber">
-                  Sign in
-                </Button>
-              </form>
+              {forgotMode ? (
+                <form onSubmit={handleForgot} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email-forgot">Email</Label>
+                    <Input id="email-forgot" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl border-0 bg-secondary" />
+                    <p className="text-xs text-muted-foreground">
+                      We'll send a reset link to this address.
+                    </p>
+                  </div>
+                  <Button type="submit" disabled={busy} className="w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber">
+                    Send reset link
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setForgotMode(false)}
+                    className="block w-full text-center text-xs text-muted-foreground hover:text-primary transition"
+                  >
+                    Back to sign in
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email-in">Email</Label>
+                    <Input id="email-in" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl border-0 bg-secondary" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="pw-in">Password</Label>
+                      <button
+                        type="button"
+                        onClick={() => setForgotMode(true)}
+                        className="text-xs text-muted-foreground hover:text-primary transition"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <Input id="pw-in" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl border-0 bg-secondary" />
+                  </div>
+                  <Button type="submit" disabled={busy} className="w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-amber">
+                    Sign in
+                  </Button>
+                </form>
+              )}
             </TabsContent>
 
             <TabsContent value="signup">
