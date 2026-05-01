@@ -73,6 +73,25 @@ export default function Auth() {
     toast.success("Check your inbox to confirm your email, then sign in to redeem your invite.");
   };
 
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) {
+      toast.error("Enter your email first.");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Check your inbox for a reset link.");
+    setForgotMode(false);
+  };
+
   const handleGoogle = async () => {
     setBusy(true);
     // Pass the invite code through the OAuth round-trip via the redirect URL.
