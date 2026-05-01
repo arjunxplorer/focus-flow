@@ -51,13 +51,17 @@ export default function Tasks() {
     const [t, s] = await Promise.all([
       supabase
         .from("tasks")
-        .select("id,title,duration_minutes,completed,section_id")
-        .eq("completed", false)
+        .select("id,title,duration_minutes,completed,section_id,created_at")
         .gte("created_at", startOfDay.toISOString())
         .order("created_at", { ascending: false }),
       supabase.from("sections").select("id,name"),
     ]);
-    setTasks(t.data ?? []);
+    // Incomplete first, then completed (each group keeps created_at desc).
+    const sorted = (t.data ?? []).slice().sort((a, b) => {
+      if (a.completed === b.completed) return 0;
+      return a.completed ? 1 : -1;
+    });
+    setTasks(sorted);
     setSections(s.data ?? []);
     setLoading(false);
   };
