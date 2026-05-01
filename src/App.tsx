@@ -26,6 +26,7 @@ const App = () => (
           <TimerProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route element={<AppLayout />}>
                 <Route path="/" element={<Tasks />} />
                 <Route path="/dashboard" element={<Dashboard />} />
