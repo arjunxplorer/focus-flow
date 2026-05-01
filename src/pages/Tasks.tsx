@@ -21,6 +21,7 @@ interface Task {
   duration_minutes: number;
   completed: boolean;
   section_id: string | null;
+  created_at?: string;
 }
 interface Section { id: string; name: string }
 
