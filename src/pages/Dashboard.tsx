@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Flame, Clock, Coffee } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTimer } from "@/contexts/TimerContext";
 import { supabase } from "@/integrations/supabase/client";
 import { FocusHeatmap } from "@/components/FocusHeatmap";
 import { SectionDonut } from "@/components/SectionDonut";
@@ -8,8 +9,27 @@ import { SectionDonut } from "@/components/SectionDonut";
 interface SectionStat { id: string; name: string; seconds: number }
 interface SessionRow { started_at: string | null; duration_seconds: number; task_id: string | null }
 
+// Returns a YYYY-MM-DD string in the user's local timezone — matches FocusHeatmap's localDateKey.
+function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Human-readable focus duration:
+//   < 1 hr  → "23 min"
+//   exact hr → "2 hrs"
+//   mixed    → "1 hr 30 min"
+function formatFocusTime(seconds: number): string {
+  const totalMins = Math.round(seconds / 60);
+  if (totalMins < 60) return `${totalMins} min`;
+  const hrs = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  const hLabel = hrs === 1 ? "hr" : "hrs";
+  return mins === 0 ? `${hrs} ${hLabel}` : `${hrs} ${hLabel} ${mins} min`;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
+  const { active, remaining } = useTimer();
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState(0);
   const [totalSeconds, setTotalSeconds] = useState(0);
@@ -17,66 +37,87 @@ export default function Dashboard() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [hasAny, setHasAny] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      if (!user) return;
-      setLoading(true);
-      const [tasksRes, sessionsRes, sectionsRes] = await Promise.all([
-        supabase.from("tasks").select("id,section_id,completed_at").eq("completed", true),
-        supabase.from("focus_sessions").select("started_at,duration_seconds,task_id"),
-        supabase.from("sections").select("id,name"),
-      ]);
-      const tasks = tasksRes.data ?? [];
-      const sessionRows = (sessionsRes.data ?? []) as SessionRow[];
-      const sections = sectionsRes.data ?? [];
-      setSessions(sessionRows);
+  const load = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    const [tasksRes, sessionsRes, sectionsRes] = await Promise.all([
+      supabase.from("tasks").select("id,section_id,completed_at").eq("completed", true),
+      supabase.from("focus_sessions").select("started_at,duration_seconds,task_id"),
+      supabase.from("sections").select("id,name"),
+    ]);
+    const tasks = tasksRes.data ?? [];
+    const sessionRows = (sessionsRes.data ?? []) as SessionRow[];
+    const sections = sectionsRes.data ?? [];
+    setSessions(sessionRows);
 
-      setHasAny(tasks.length > 0 || sessionRows.length > 0);
+    setHasAny(tasks.length > 0 || sessionRows.length > 0);
 
-      // Streak: count consecutive days ending today (or yesterday) with a completed task.
-      const days = new Set<string>();
-      tasks.forEach((t) => {
-        if (t.completed_at) days.add(new Date(t.completed_at).toISOString().slice(0, 10));
-      });
-      let s = 0;
-      const now = new Date();
-      const today = now.toISOString().slice(0, 10);
-      const yesterday = new Date(now.getTime() - 86400000).toISOString().slice(0, 10);
-      let cursor = days.has(today) ? new Date(now) : days.has(yesterday) ? new Date(now.getTime() - 86400000) : null;
-      while (cursor) {
-        const key = cursor.toISOString().slice(0, 10);
-        if (days.has(key)) {
-          s++;
-          cursor = new Date(cursor.getTime() - 86400000);
-        } else break;
-      }
-      setStreak(s);
+    // Streak: count consecutive days ending today (or yesterday) with a completed task.
+    // Uses local timezone dates so a task completed at 11 PM locally is counted for that
+    // local day, not the next UTC day.
+    const days = new Set<string>();
+    tasks.forEach((t) => {
+      if (t.completed_at) days.add(localDateKey(new Date(t.completed_at)));
+    });
+    let s = 0;
+    const now = new Date();
+    const today = localDateKey(now);
+    const yesterday = localDateKey(new Date(now.getTime() - 86_400_000));
+    let cursor = days.has(today) ? new Date(now) : days.has(yesterday) ? new Date(now.getTime() - 86_400_000) : null;
+    while (cursor) {
+      const key = localDateKey(cursor);
+      if (days.has(key)) {
+        s++;
+        cursor = new Date(cursor.getTime() - 86_400_000);
+      } else break;
+    }
+    setStreak(s);
 
-      // Total seconds
-      const total = sessionRows.reduce((acc, x) => acc + (x.duration_seconds ?? 0), 0);
-      setTotalSeconds(total);
+    // Total seconds — includes all started sessions (elapsed time is real focus time).
+    const total = sessionRows.reduce((acc, x) => acc + (x.duration_seconds ?? 0), 0);
+    setTotalSeconds(total);
 
-      // Per-section: map task_id -> section_id
-      const taskSection = new Map<string, string | null>();
-      const allTasksRes = await supabase.from("tasks").select("id,section_id");
-      (allTasksRes.data ?? []).forEach((t) => taskSection.set(t.id, t.section_id));
-      const bySection = new Map<string, number>();
-      sessionRows.forEach((sess) => {
-        const sid = sess.task_id ? taskSection.get(sess.task_id) : null;
-        if (!sid) return;
-        bySection.set(sid, (bySection.get(sid) ?? 0) + (sess.duration_seconds ?? 0));
-      });
-      const stats: SectionStat[] = sections
-        .map((sec) => ({ id: sec.id, name: sec.name, seconds: bySection.get(sec.id) ?? 0 }))
-        .sort((a, b) => b.seconds - a.seconds);
-      setPerSection(stats);
+    // Per-section: map task_id -> section_id
+    const taskSection = new Map<string, string | null>();
+    const allTasksRes = await supabase.from("tasks").select("id,section_id");
+    (allTasksRes.data ?? []).forEach((t) => taskSection.set(t.id, t.section_id));
+    const bySection = new Map<string, number>();
+    sessionRows.forEach((sess) => {
+      const sid = sess.task_id ? taskSection.get(sess.task_id) : null;
+      if (!sid) return;
+      bySection.set(sid, (bySection.get(sid) ?? 0) + (sess.duration_seconds ?? 0));
+    });
+    const stats: SectionStat[] = sections
+      .map((sec) => ({ id: sec.id, name: sec.name, seconds: bySection.get(sec.id) ?? 0 }))
+      .sort((a, b) => b.seconds - a.seconds);
+    setPerSection(stats);
 
-      setLoading(false);
-    };
-    load();
+    setLoading(false);
   }, [user]);
 
-  const totalHours = (totalSeconds / 3600).toFixed(1);
+  // Initial load
+  useEffect(() => { load(); }, [load]);
+
+  // Live refresh: re-fetch whenever a focus session is inserted or updated
+  // (covers natural completion, manual stop, and mark-complete).
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel("dashboard-sessions")
+      .on("postgres_changes", { event: "*", schema: "public", table: "focus_sessions" }, () => {
+        void load();
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tasks" }, () => {
+        void load();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [user, load]);
+
+  // Add elapsed time from any in-progress session. The DB row for that session
+  // starts at duration_seconds=0, so this doesn't double-count.
+  const liveElapsed = active ? active.durationSeconds - remaining : 0;
+  const totalFocusLabel = formatFocusTime(totalSeconds + liveElapsed);
 
   if (loading) {
     return (
@@ -119,7 +160,7 @@ export default function Dashboard() {
             <StatCard
               icon={<Clock className="h-5 w-5" />}
               label="Total focused"
-              value={`${totalHours}h`}
+              value={totalFocusLabel}
               hint="Across every session you've finished."
             />
           </div>

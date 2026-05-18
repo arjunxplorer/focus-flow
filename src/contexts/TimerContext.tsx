@@ -97,6 +97,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       .insert({
         user_id: userRef.current.id,
         task_id: taskId,
+        started_at: new Date().toISOString(),
         duration_seconds: 0,
         completed: false,
       })
