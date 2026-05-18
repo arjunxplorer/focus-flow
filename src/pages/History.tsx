@@ -19,6 +19,7 @@ function dayKey(d: Date) {
 }
 
 function formatGroupLabel(key: string, todayKey: string, yesterdayKey: string) {
+  if (key === todayKey) return "Today";
   if (key === yesterdayKey) return "Yesterday";
   const [y, m, d] = key.split("-").map(Number);
   const date = new Date(y, m - 1, d);
@@ -57,9 +58,10 @@ export default function History() {
   const todayKey = dayKey(now);
   const yesterdayKey = dayKey(new Date(now.getTime() - 86400000));
 
-  // History only includes tasks created before today.
-  // Today's tasks (completed or not) live on the Tasks page until midnight.
+  // Completed tasks appear here as soon as they're finished.
+  // Incomplete tasks from earlier days stay here until you finish them.
   const historyTasks = tasks.filter((t) => {
+    if (t.completed && t.completed_at) return true;
     const createdKey = dayKey(new Date(t.created_at));
     return createdKey < todayKey;
   });
