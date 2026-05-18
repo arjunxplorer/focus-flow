@@ -29,72 +29,88 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [active, setActive] = useState<ActiveTimer | null>(null);
   const [remaining, setRemaining] = useState(0);
-  const tickRef = useRef<number | null>(null);
 
-  const tick = useCallback(() => {
-    setActive((cur) => {
-      if (!cur) return cur;
-      if (cur.paused) {
-        setRemaining(cur.pausedRemaining ?? 0);
-        return cur;
-      }
-      const r = Math.max(0, Math.round((cur.endsAt - Date.now()) / 1000));
-      setRemaining(r);
-      if (r === 0) {
-        // Auto-complete
-        void completeNaturally(cur);
-        return null;
-      }
-      return cur;
+  // Refs that always hold the latest values — safe to read inside callbacks
+  // without stale-closure issues.
+  const activeRef = useRef<ActiveTimer | null>(null);
+  const userRef = useRef(user);
+  // Guards against the natural-completion handler firing more than once.
+  const completingRef = useRef(false);
+
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { activeRef.current = active; }, [active]);
+
+  const completeNaturally = useCallback(async (t: ActiveTimer) => {
+    if (!userRef.current) return;
+    await supabase
+      .from("tasks")
+      .update({ completed: true, completed_at: new Date().toISOString() })
+      .eq("id", t.taskId);
+    if (t.sessionId) {
+      await supabase
+        .from("focus_sessions")
+        .update({
+          ended_at: new Date().toISOString(),
+          duration_seconds: t.durationSeconds,
+          completed: true,
+        })
+        .eq("id", t.sessionId);
+    }
+    toast.success("Session complete — well done.", {
+      description: `"${t.taskTitle}" marked done.`,
     });
   }, []);
 
+  // Tick reads from activeRef so it never has a stale closure, and all state
+  // updates happen outside the setActive updater (pure function requirement).
+  const tick = useCallback(() => {
+    const cur = activeRef.current;
+    if (!cur) return;
+
+    if (cur.paused) {
+      setRemaining(cur.pausedRemaining ?? 0);
+      return;
+    }
+
+    const r = Math.max(0, Math.round((cur.endsAt - Date.now()) / 1000));
+    setRemaining(r);
+
+    if (r === 0 && !completingRef.current) {
+      completingRef.current = true;
+      setActive(null);
+      void completeNaturally(cur).finally(() => {
+        completingRef.current = false;
+      });
+    }
+  }, [completeNaturally]);
+
   useEffect(() => {
-    tickRef.current = window.setInterval(tick, 250);
-    return () => {
-      if (tickRef.current) window.clearInterval(tickRef.current);
-    };
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
   }, [tick]);
 
-  const completeNaturally = async (t: ActiveTimer) => {
-    if (!user) return;
-    await supabase.from("tasks").update({
-      completed: true,
-      completed_at: new Date().toISOString(),
-    }).eq("id", t.taskId);
-    if (t.sessionId) {
-      await supabase.from("focus_sessions").update({
-        ended_at: new Date().toISOString(),
-        duration_seconds: t.durationSeconds,
-        completed: true,
-      }).eq("id", t.sessionId);
-    }
-    toast.success("Session complete — well done.", {
-      description: `“${t.taskTitle}” marked done.`,
-    });
-  };
-
   const start = async (taskId: string, title: string, minutes: number) => {
-    if (!user) return;
+    if (!userRef.current) return;
     const seconds = minutes * 60;
     const { data: sess } = await supabase
       .from("focus_sessions")
       .insert({
-        user_id: user.id,
+        user_id: userRef.current.id,
         task_id: taskId,
         duration_seconds: 0,
         completed: false,
       })
       .select()
       .single();
-    setActive({
+    const timer: ActiveTimer = {
       taskId,
       taskTitle: title,
       durationSeconds: seconds,
       endsAt: Date.now() + seconds * 1000,
       paused: false,
       sessionId: sess?.id,
-    });
+    };
+    setActive(timer);
     setRemaining(seconds);
   };
 
@@ -115,38 +131,43 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   };
 
   const reset = () => {
-    setActive((cur) => {
-      if (!cur) return cur;
-      return { ...cur, paused: true, pausedRemaining: cur.durationSeconds, endsAt: Date.now() + cur.durationSeconds * 1000 };
-    });
-    setRemaining((r) => r);
+    const cur = activeRef.current;
+    if (!cur) return;
+    setActive({ ...cur, paused: true, pausedRemaining: cur.durationSeconds, endsAt: Date.now() + cur.durationSeconds * 1000 });
+    setRemaining(cur.durationSeconds);
   };
 
   const stop = async (markCompleted = false) => {
-    const cur = active;
-    if (!cur || !user) {
-      setActive(null);
-      return;
-    }
+    // Read from the ref so we always get the latest active, even if a
+    // natural-completion tick just set the state version to null.
+    const cur = activeRef.current;
+    setActive(null);
+    setRemaining(0);
+
+    if (!cur || !userRef.current) return;
+
     const elapsed = cur.paused
       ? cur.durationSeconds - (cur.pausedRemaining ?? 0)
       : cur.durationSeconds - Math.max(0, Math.round((cur.endsAt - Date.now()) / 1000));
+
     if (cur.sessionId) {
-      await supabase.from("focus_sessions").update({
-        ended_at: new Date().toISOString(),
-        duration_seconds: Math.max(0, elapsed),
-        completed: markCompleted,
-      }).eq("id", cur.sessionId);
+      await supabase
+        .from("focus_sessions")
+        .update({
+          ended_at: new Date().toISOString(),
+          duration_seconds: Math.max(0, elapsed),
+          completed: markCompleted,
+        })
+        .eq("id", cur.sessionId);
     }
+
     if (markCompleted) {
-      await supabase.from("tasks").update({
-        completed: true,
-        completed_at: new Date().toISOString(),
-      }).eq("id", cur.taskId);
+      await supabase
+        .from("tasks")
+        .update({ completed: true, completed_at: new Date().toISOString() })
+        .eq("id", cur.taskId);
       toast.success("Marked complete.");
     }
-    setActive(null);
-    setRemaining(0);
   };
 
   return (
