@@ -123,15 +123,15 @@ export function SectionDonut({ data }: { data: SectionDatum[] }) {
       </div>
 
       {/* Legend */}
-      {!isZero && (
+      {trimmed.length > 0 && (
         <div className="mt-6 grid w-full max-w-sm grid-cols-2 gap-x-6 gap-y-2">
           {trimmed.map((d, i) => (
             <div key={d.id} className="flex items-center gap-2 text-sm">
               <span
                 className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary"
-                style={{ opacity: OPACITY_RAMP[i] ?? 0.15 }}
+                style={{ opacity: isZero ? 0.3 : (OPACITY_RAMP[i] ?? 0.15) }}
               />
-              <span className="truncate text-cream">{d.name}</span>
+              <span className={`truncate ${isZero ? "text-muted-foreground" : "text-cream"}`}>{d.name}</span>
               <span className="ml-auto font-mono tabular-nums text-xs text-muted-foreground">
                 {(d.seconds / 3600).toFixed(1)}h
               </span>

@@ -110,6 +110,9 @@ export default function Dashboard() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tasks" }, () => {
         void load();
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "sections" }, () => {
+        void load();
+      })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [user, load]);
