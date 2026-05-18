@@ -5,6 +5,7 @@ import { useTimer } from "@/contexts/TimerContext";
 import { supabase } from "@/integrations/supabase/client";
 import { FocusHeatmap } from "@/components/FocusHeatmap";
 import { SectionDonut } from "@/components/SectionDonut";
+import { formatFocusTime } from "@/lib/utils";
 
 interface SectionStat { id: string; name: string; seconds: number }
 interface SessionRow { started_at: string | null; duration_seconds: number; task_id: string | null }
@@ -14,18 +15,6 @@ function localDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// Human-readable focus duration:
-//   < 1 hr  → "23 min"
-//   exact hr → "2 hrs"
-//   mixed    → "1 hr 30 min"
-function formatFocusTime(seconds: number): string {
-  const totalMins = Math.round(seconds / 60);
-  if (totalMins < 60) return `${totalMins} min`;
-  const hrs = Math.floor(totalMins / 60);
-  const mins = totalMins % 60;
-  const hLabel = hrs === 1 ? "hr" : "hrs";
-  return mins === 0 ? `${hrs} ${hLabel}` : `${hrs} ${hLabel} ${mins} min`;
-}
 
 export default function Dashboard() {
   const { user } = useAuth();

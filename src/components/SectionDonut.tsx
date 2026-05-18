@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { formatFocusTime } from "@/lib/utils";
 
 export interface SectionDatum {
   id: string;
@@ -11,10 +12,11 @@ const OPACITY_RAMP = [1, 0.8, 0.6, 0.4, 0.25, 0.15];
 export function SectionDonut({ data }: { data: SectionDatum[] }) {
   const trimmed = data.slice(0, 6);
   const totalSeconds = trimmed.reduce((acc, d) => acc + d.seconds, 0);
-  const totalHours = (totalSeconds / 3600).toFixed(1);
   const isZero = totalSeconds === 0;
 
   // Geometry
+  const totalLabel = formatFocusTime(totalSeconds);
+
   const size = 220;
   const stroke = 22;
   const r = (size - stroke) / 2;
@@ -104,7 +106,7 @@ export function SectionDonut({ data }: { data: SectionDatum[] }) {
 
         {/* Center label */}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-3xl font-semibold text-cream tabular-nums">{totalHours}h</div>
+          <div className="text-3xl font-semibold text-cream tabular-nums">{totalLabel}</div>
           <div className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
             total focused
           </div>
@@ -115,7 +117,7 @@ export function SectionDonut({ data }: { data: SectionDatum[] }) {
           <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full rounded-xl bg-popover px-3 py-2 text-xs text-cream shadow-amber whitespace-nowrap">
             <div className="font-medium">{segments[hoverIdx].name}</div>
             <div className="text-muted-foreground">
-              {(segments[hoverIdx].seconds / 3600).toFixed(1)}h ·{" "}
+              {formatFocusTime(segments[hoverIdx].seconds)} ·{" "}
               {Math.round(segments[hoverIdx].fraction * 100)}%
             </div>
           </div>
@@ -133,7 +135,7 @@ export function SectionDonut({ data }: { data: SectionDatum[] }) {
               />
               <span className={`truncate ${isZero ? "text-muted-foreground" : "text-cream"}`}>{d.name}</span>
               <span className="ml-auto font-mono tabular-nums text-xs text-muted-foreground">
-                {(d.seconds / 3600).toFixed(1)}h
+                {formatFocusTime(d.seconds)}
               </span>
             </div>
           ))}
