@@ -36,6 +36,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setInviteRedeemed(!!data);
   }, []);
 
+  // After Google OAuth, redeem invite from ?invite= on `/` (avoids /auth 404 on Vercel without rewrites).
+  useEffect(() => {
+    if (!session?.user) return;
+    const code = new URLSearchParams(window.location.search).get("invite");
+    if (!code?.trim()) return;
+
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase.rpc("redeem_invite", {
+        _code: code.trim().toUpperCase(),
+      });
+      if (cancelled) return;
+      const out = data as { ok: boolean } | null;
+      if (!error && out?.ok) {
+        await checkInvite(session.user.id);
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete("invite");
+      window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user, checkInvite]);
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);

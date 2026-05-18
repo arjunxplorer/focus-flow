@@ -94,18 +94,49 @@ export default function Auth() {
 
   const handleGoogle = async () => {
     setBusy(true);
-    // Pass the invite code through the OAuth round-trip via the redirect URL.
+    // Redirect to `/` (not `/auth`) so Vercel serves index.html without vercel.json rewrites.
     const redirectUrl = invite.trim()
-      ? `${window.location.origin}/auth?invite=${encodeURIComponent(invite.trim().toUpperCase())}`
-      : window.location.origin;
-    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: redirectUrl });
-    if (result.error) {
-      setBusy(false);
-      toast.error("Could not sign in with Google.");
+      ? `${window.location.origin}/?invite=${encodeURIComponent(invite.trim().toUpperCase())}`
+      : `${window.location.origin}/`;
+
+    const isLocal =
+      window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const brokerUrl = import.meta.env.VITE_LOVABLE_OAUTH_BROKER_URL?.trim();
+    const useLovableBroker = isLocal && Boolean(brokerUrl);
+
+    if (useLovableBroker) {
+      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: redirectUrl });
+      if (result.error) {
+        setBusy(false);
+        toast.error(result.error.message || "Could not sign in with Google.");
+        return;
+      }
+      if (result.redirected) return;
+      navigate("/");
       return;
     }
-    if (result.redirected) return;
-    navigate("/");
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: redirectUrl },
+    });
+    if (error) {
+      setBusy(false);
+      const msg = error.message ?? "";
+      if (
+        msg.includes("OAuth secret") ||
+        msg.includes("Unsupported provider") ||
+        msg.includes("not enabled")
+      ) {
+        toast.error(
+          "Enable Google under Supabase → Authentication → Providers and add your Google OAuth client ID and secret.",
+          { duration: 12_000 },
+        );
+        return;
+      }
+      toast.error(msg || "Could not sign in with Google.");
+      return;
+    }
   };
 
   return (
