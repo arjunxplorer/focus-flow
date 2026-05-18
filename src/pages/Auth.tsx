@@ -11,7 +11,7 @@ import { lovable } from "@/integrations/lovable";
 import { toast } from "sonner";
 
 export default function Auth() {
-  const { user, loading } = useAuth();
+  const { user, loading, refreshInviteStatus } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -60,11 +60,16 @@ export default function Auth() {
     // If a session was returned (auto-confirm on), redeem immediately.
     if (data.session) {
       const res = await supabase.rpc("redeem_invite", { _code: invite.trim().toUpperCase() });
-      setBusy(false);
       const out = res.data as { ok: boolean; error?: string } | null;
       if (res.error || !out?.ok) {
+        setBusy(false);
         toast.error(out?.error ?? "Could not redeem invite. You can try again from the next screen.");
+        navigate("/");
+        return;
       }
+      // Sync invite status before navigating so AppLayout doesn't flash InviteGate.
+      await refreshInviteStatus();
+      setBusy(false);
       navigate("/");
       return;
     }
