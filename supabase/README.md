@@ -30,6 +30,10 @@ npm run db:push
 
 Runs everything in `supabase/migrations/` in order. Use `npm run db:push:dry` to preview.
 
+## Security
+
+After schema changes, review [`docs/SECURITY.md`](../docs/SECURITY.md) for dashboard checklist and optional staging integration tests (`npm run test:security:integration`).
+
 ## Authentication (required for this app)
 
 Migrations only set up the database. **Auth providers** are configured in the dashboard:

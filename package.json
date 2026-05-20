@@ -10,7 +10,15 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:security": "vitest run src/test/security.test.ts src/test/security.integration.test.ts",
+    "test:security:integration": "vitest run src/test/security.integration.test.ts",
+    "supabase": "supabase",
+    "supabase:login": "supabase login",
+    "db:link": "supabase link",
+    "db:push": "supabase db push",
+    "db:push:dry": "supabase db push --dry-run",
+    "db:types": "supabase gen types typescript --linked > src/integrations/supabase/types.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -82,6 +90,7 @@
     "jsdom": "^20.0.3",
     "lovable-tagger": "^1.1.13",
     "postcss": "^8.5.6",
+    "supabase": "^2.30.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",

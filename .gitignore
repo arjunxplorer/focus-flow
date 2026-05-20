@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+docs/
 
 # Secrets (use .env.example as a template)
 .env

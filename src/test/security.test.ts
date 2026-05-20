@@ -101,6 +101,57 @@ describe("security: database RLS and privileged functions", () => {
     expect(migrations).toMatch(/invite_redeem_attempts/i);
     expect(migrations).toMatch(/too many attempts/i);
   });
+
+  it("enforces invite redemption in RLS for user data writes", () => {
+    expect(migrations).toMatch(/user_has_redeemed_invite/i);
+    expect(migrations).toMatch(
+      /user_has_redeemed_invite\(\)[\s\S]*sections/i,
+    );
+    expect(migrations).toMatch(
+      /user_has_redeemed_invite\(\)[\s\S]*tasks/i,
+    );
+    expect(migrations).toMatch(
+      /user_has_redeemed_invite\(\)[\s\S]*focus_sessions/i,
+    );
+  });
+
+  it("validates task section_id belongs to the same user", () => {
+    expect(migrations).toMatch(
+      /section_id IN \(SELECT id FROM public\.sections WHERE user_id = auth\.uid\(\)\)/i,
+    );
+  });
+});
+
+describe("security: SQL audit expectations (migration review)", () => {
+  it("documents user_has_redeemed_invite as SECURITY DEFINER callable by authenticated for RLS", () => {
+    expect(migrations).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.user_has_redeemed_invite[\s\S]*SECURITY DEFINER[\s\S]*SET search_path = public/i,
+    );
+    expect(migrations).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.user_has_redeemed_invite\(\) TO authenticated/i,
+    );
+    expect(migrations).toMatch(
+      /REVOKE ALL ON FUNCTION public\.user_has_redeemed_invite\(\) FROM PUBLIC, anon/i,
+    );
+  });
+
+  it("keeps invite_redeem_attempts without client-facing policies", () => {
+    expect(migrations).toMatch(/invite_redeem_attempts/i);
+    expect(migrations).not.toMatch(
+      /ON public\.invite_redeem_attempts FOR (INSERT|UPDATE|DELETE|SELECT)/i,
+    );
+  });
+});
+
+describe("security: hosting headers", () => {
+  it("sets CSP and related headers in vercel.json", () => {
+    const vercel = readRepoFile("vercel.json");
+    expect(vercel).toMatch(/Content-Security-Policy/i);
+    expect(vercel).toMatch(/X-Frame-Options/i);
+    expect(vercel).toMatch(/X-Content-Type-Options/i);
+    expect(vercel).toMatch(/Referrer-Policy/i);
+    expect(vercel).toMatch(/frame-ancestors 'none'/i);
+  });
 });
 
 describe("security: application access control", () => {
@@ -128,5 +179,17 @@ describe("security: application access control", () => {
     const chart = readRepoFile("src/components/ui/chart.tsx");
     expect(chart).toMatch(/dangerouslySetInnerHTML/);
     expect(appSource).not.toMatch(/dangerouslySetInnerHTML\s*=\s*\{\{\s*__html:\s*[^}]*user/i);
+  });
+
+  it("renders user content via JSX text, not raw HTML", () => {
+    const tasks = readRepoFile("src/pages/Tasks.tsx");
+    expect(tasks).toMatch(/\{task\.title\}/);
+    expect(tasks).not.toMatch(/dangerouslySetInnerHTML/);
+  });
+
+  it("does not reflect invite query param into innerHTML", () => {
+    const authCtx = readRepoFile("src/contexts/AuthContext.tsx");
+    expect(authCtx).not.toMatch(/dangerouslySetInnerHTML/);
+    expect(authCtx).toMatch(/URLSearchParams[\s\S]*\.get\(["']invite["']\)/);
   });
 });
