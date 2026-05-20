@@ -19,7 +19,11 @@ import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const collapsedNavClass = "flex size-full items-center justify-center";
+const expandedNavClass = "flex w-full items-center gap-3";
 
 const MAX_SECTIONS = 6;
 
@@ -81,10 +85,15 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
-      <SidebarHeader className="px-4 py-5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-amber">
-            <Coffee className="h-4.5 w-4.5" strokeWidth={2.2} />
+      <SidebarHeader className={collapsed ? "items-center px-2 py-4" : "px-4 py-5"}>
+        <div className={collapsed ? "flex justify-center" : "flex items-center gap-2.5"}>
+          <div
+            className={cn(
+              "flex shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-amber",
+              collapsed ? "h-8 w-8" : "h-9 w-9",
+            )}
+          >
+            <Coffee className={cn(collapsed ? "h-4 w-4" : "h-4.5 w-4.5")} strokeWidth={2.2} />
           </div>
           {!collapsed && (
             <div className="leading-tight">
@@ -95,8 +104,8 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2">
-        <SidebarGroup>
+      <SidebarContent className={cn("px-2", collapsed && "flex flex-col items-center px-0")}>
+        <SidebarGroup className={cn(collapsed && "p-2")}>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -105,7 +114,7 @@ export function AppSidebar() {
                   isActive={pathname === "/" && !activeSection}
                   className="rounded-xl data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
                 >
-                  <NavLink to="/" end className="flex items-center gap-3">
+                  <NavLink to="/" end className={collapsed ? collapsedNavClass : expandedNavClass}>
                     <ListChecks className="h-4 w-4" />
                     {!collapsed && <span>Tasks</span>}
                   </NavLink>
@@ -113,7 +122,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard"} className="rounded-xl data-[active=true]:bg-primary/10 data-[active=true]:text-primary">
-                  <NavLink to="/dashboard" className="flex items-center gap-3">
+                  <NavLink to="/dashboard" className={collapsed ? collapsedNavClass : expandedNavClass}>
                     <BarChart3 className="h-4 w-4" />
                     {!collapsed && <span>Dashboard</span>}
                   </NavLink>
@@ -121,7 +130,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/history"} className="rounded-xl data-[active=true]:bg-primary/10 data-[active=true]:text-primary">
-                  <NavLink to="/history" className="flex items-center gap-3">
+                  <NavLink to="/history" className={collapsed ? collapsedNavClass : expandedNavClass}>
                     <Clock className="h-4 w-4" />
                     {!collapsed && <span>History</span>}
                   </NavLink>
@@ -131,10 +140,9 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {!collapsed && (
         <SidebarGroup>
-          <SidebarGroupLabel className="text-muted-foreground/80">
-            {!collapsed ? "Sections" : ""}
-          </SidebarGroupLabel>
+          <SidebarGroupLabel className="text-muted-foreground/80">Sections</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {sections.map((s) => (
@@ -145,22 +153,17 @@ export function AppSidebar() {
                     className="group rounded-xl data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
                   >
                     <span className="h-2 w-2 rounded-full bg-primary/70" />
-                    {!collapsed && (
-                      <>
-                        <span className="flex-1 truncate">{s.name}</span>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); deleteSection(s.id); }}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
-                          aria-label="Delete section"
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                        </button>
-                      </>
-                    )}
+                    <span className="flex-1 truncate">{s.name}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteSection(s.id); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Delete section"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                    </button>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              {!collapsed && (
                 <SidebarMenuItem>
                   {adding ? (
                     <div className="flex items-center gap-1.5 px-2 py-1">
@@ -212,13 +215,13 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   )}
                 </SidebarMenuItem>
-              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        )}
       </SidebarContent>
 
-      <SidebarFooter className="p-3">
+      <SidebarFooter className={collapsed ? "flex items-center justify-center p-2" : "p-3"}>
         {!collapsed && user && (
           <div className="flex items-center gap-2.5 rounded-2xl bg-secondary/60 px-3 py-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-sm font-medium text-primary">
@@ -239,7 +242,7 @@ export function AppSidebar() {
           </div>
         )}
         {collapsed && (
-          <Button size="icon" variant="ghost" className="rounded-xl" onClick={signOut} aria-label="Sign out">
+          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-xl" onClick={signOut} aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </Button>
         )}
