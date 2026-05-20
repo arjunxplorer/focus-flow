@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Plus, Play, Check, Trash2, Coffee, Tag } from "lucide-react";
+import { Plus, Play, Check, Trash2, Coffee, Tag, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTimer } from "@/contexts/TimerContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { startOfLocalDayIso } from "@/lib/dates";
+import { startOfLocalDayIso, localDateKey } from "@/lib/dates";
+import { formatFocusTime } from "@/lib/utils";
 
 interface Task {
   id: string;
@@ -30,7 +31,7 @@ const PRESETS = [15, 25, 45, 60];
 
 export default function Tasks() {
   const { user } = useAuth();
-  const { active, start } = useTimer();
+  const { active, start, remaining } = useTimer();
   const navigate = useNavigate();
   const params = new URLSearchParams(useLocation().search);
   const sectionFilter = params.get("section");
@@ -43,33 +44,74 @@ export default function Tasks() {
   const [title, setTitle] = useState("");
   const [duration, setDuration] = useState(25);
   const [sectionId, setSectionId] = useState<string>("none");
+  const [todayFocusSeconds, setTodayFocusSeconds] = useState(0);
 
   useEffect(() => {
     if (open && sectionFilter) setSectionId(sectionFilter);
     else if (open && !sectionFilter) setSectionId("none");
   }, [open, sectionFilter]);
 
+  const loadTodayFocus = async () => {
+    if (!user) return;
+    const startIso = startOfLocalDayIso();
+    const { data } = await supabase
+      .from("focus_sessions")
+      .select("started_at,duration_seconds")
+      .gte("started_at", startIso);
+    const today = localDateKey();
+    const total = (data ?? []).reduce((acc, s) => {
+      if (!s.started_at || localDateKey(new Date(s.started_at)) !== today) return acc;
+      return acc + (s.duration_seconds ?? 0);
+    }, 0);
+    setTodayFocusSeconds(total);
+  };
+
   const load = async () => {
     if (!user) return;
     setLoading(true);
     const startIso = startOfLocalDayIso();
-    const [t, s] = await Promise.all([
+    const [tasksRes, sectionsRes, sessionsRes] = await Promise.all([
       supabase
         .from("tasks")
         .select("id,title,duration_minutes,completed,section_id,created_at,completed_at")
         .or(`and(completed.eq.false,created_at.gte.${startIso}),and(completed.eq.true,completed_at.gte.${startIso})`)
         .order("created_at", { ascending: false }),
       supabase.from("sections").select("id,name"),
+      supabase
+        .from("focus_sessions")
+        .select("started_at,duration_seconds")
+        .gte("started_at", startIso),
     ]);
-    setTasks(t.data ?? []);
-    setSections(s.data ?? []);
+    setTasks(tasksRes.data ?? []);
+    setSections(sectionsRes.data ?? []);
+    const today = localDateKey();
+    const sessions = sessionsRes.data ?? [];
+    setTodayFocusSeconds(
+      sessions.reduce((acc, sess) => {
+        if (!sess.started_at || localDateKey(new Date(sess.started_at)) !== today) return acc;
+        return acc + (sess.duration_seconds ?? 0);
+      }, 0),
+    );
     setLoading(false);
   };
 
   useEffect(() => { load(); }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel("tasks-sessions")
+      .on("postgres_changes", { event: "*", schema: "public", table: "focus_sessions" }, () => {
+        void loadTodayFocus();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [user]);
+
   const filtered = sectionFilter ? tasks.filter((t) => t.section_id === sectionFilter) : tasks;
   const currentSection = sections.find((s) => s.id === sectionFilter);
+  const liveElapsed = active ? active.durationSeconds - remaining : 0;
+  const todayFocusLabel = formatFocusTime(todayFocusSeconds + liveElapsed);
 
   const create = async () => {
     if (!user || !title.trim()) return;
@@ -116,6 +158,15 @@ export default function Tasks() {
           <p className="text-sm text-muted-foreground">
             {currentSection ? "Filtered by section" : "Everything brewing right now."}
           </p>
+          {!loading && (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-primary">
+              <Clock className="h-3.5 w-3.5" />
+              <span>
+                <span className="font-medium tabular-nums">{todayFocusLabel}</span>
+                <span className="text-muted-foreground"> focused today</span>
+              </span>
+            </p>
+          )}
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>

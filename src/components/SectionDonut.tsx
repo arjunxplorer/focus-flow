@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { formatFocusTime } from "@/lib/utils";
+import { formatFocusTime, formatFocusTimeCompact } from "@/lib/utils";
 
 export interface SectionDatum {
   id: string;
@@ -15,7 +15,7 @@ export function SectionDonut({ data }: { data: SectionDatum[] }) {
   const isZero = totalSeconds === 0;
 
   // Geometry
-  const totalLabel = formatFocusTime(totalSeconds);
+  const totalLabel = formatFocusTimeCompact(totalSeconds);
 
   const size = 220;
   const stroke = 22;
@@ -106,7 +106,7 @@ export function SectionDonut({ data }: { data: SectionDatum[] }) {
 
         {/* Center label */}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-3xl font-semibold text-cream tabular-nums">{totalLabel}</div>
+          <div className="text-2xl font-semibold text-cream tabular-nums">{totalLabel}</div>
           <div className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
             total focused
           </div>

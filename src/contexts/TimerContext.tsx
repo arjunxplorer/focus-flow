@@ -26,6 +26,16 @@ interface TimerContextValue {
 
 const TimerContext = createContext<TimerContextValue | undefined>(undefined);
 
+/** Seconds actually spent on the timer (excludes remaining time). */
+export function getWorkedSeconds(cur: ActiveTimer, remainingSeconds?: number): number {
+  const remaining =
+    remainingSeconds ??
+    (cur.paused
+      ? (cur.pausedRemaining ?? 0)
+      : Math.max(0, Math.round((cur.endsAt - Date.now()) / 1000)));
+  return Math.max(0, cur.durationSeconds - remaining);
+}
+
 export function TimerProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [active, setActive] = useState<ActiveTimer | null>(null);
@@ -52,7 +62,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         .from("focus_sessions")
         .update({
           ended_at: new Date().toISOString(),
-          duration_seconds: t.durationSeconds,
+          duration_seconds: getWorkedSeconds(t, 0),
           completed: true,
         })
         .eq("id", t.sessionId);
@@ -149,16 +159,14 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
     if (!cur || !userRef.current) return;
 
-    const elapsed = cur.paused
-      ? cur.durationSeconds - (cur.pausedRemaining ?? 0)
-      : cur.durationSeconds - Math.max(0, Math.round((cur.endsAt - Date.now()) / 1000));
+    const workedSeconds = getWorkedSeconds(cur);
 
     if (cur.sessionId) {
       await supabase
         .from("focus_sessions")
         .update({
           ended_at: new Date().toISOString(),
-          duration_seconds: Math.max(0, elapsed),
+          duration_seconds: workedSeconds,
           completed: markCompleted,
         })
         .eq("id", cur.sessionId);

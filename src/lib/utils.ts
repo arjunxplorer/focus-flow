@@ -17,3 +17,12 @@ export function formatFocusTime(seconds: number): string {
   const hLabel = hrs === 1 ? "hr" : "hrs";
   return mins === 0 ? `${hrs} ${hLabel}` : `${hrs} ${hLabel} ${mins} min`;
 }
+
+/** Compact label for tight spaces (e.g. donut center): whole hours only, no minutes */
+export function formatFocusTimeCompact(seconds: number): string {
+  const totalMins = Math.round(seconds / 60);
+  if (totalMins < 60) return `${totalMins} min`;
+  const hrs = Math.floor(totalMins / 60);
+  const hLabel = hrs === 1 ? "hr" : "hrs";
+  return `${hrs} ${hLabel}`;
+}
