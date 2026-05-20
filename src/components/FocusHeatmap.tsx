@@ -14,9 +14,9 @@ interface Props {
 /** ~3 months of weekly columns (GitHub-style, Sunday-start). */
 const WEEKS = 13;
 const DAY_MS = 86400000;
-/** Matches Tailwind h-3 w-3 + gap-1.5 */
-const COL_STRIDE_PX = 18;
-const DAY_LABEL_OFFSET_PX = 24;
+/** Matches Tailwind h-4 w-4 + gap-2 */
+const COL_STRIDE_PX = 24;
+const DAY_LABEL_OFFSET_PX = 28;
 
 function bucket(hours: number): 0 | 1 | 2 | 3 | 4 {
   if (hours <= 0) return 0;
@@ -77,88 +77,90 @@ export function FocusHeatmap({ sessions }: Props) {
     return { columns, monthMarkers };
   }, [sessions]);
 
-  const gridWidthPx = columns.length * COL_STRIDE_PX - 6;
+  const gridWidthPx = columns.length * COL_STRIDE_PX - 8;
 
   return (
-    <div className="rounded-3xl bg-card p-6 shadow-amber">
+    <div className="flex h-full min-h-[320px] flex-col rounded-3xl bg-card p-6 shadow-amber">
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold text-cream">Last 3 months</h2>
         <span className="text-xs text-muted-foreground">Timer sessions</span>
       </div>
       <p className="mb-3 text-xs text-muted-foreground">Hours focused per day</p>
 
-      <TooltipProvider delayDuration={100}>
-        <div className="overflow-x-auto">
-          <div className="inline-block min-w-0">
-            <div
-              className="relative mb-1.5 h-4 text-[10px] uppercase tracking-wider text-muted-foreground/80"
-              style={{ marginLeft: DAY_LABEL_OFFSET_PX, width: gridWidthPx }}
-            >
-              {monthMarkers.map(({ weekIndex, label }) => (
-                <span
-                  key={`${label}-${weekIndex}`}
-                  className="absolute whitespace-nowrap"
-                  style={{ left: weekIndex * COL_STRIDE_PX }}
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-
-            <div className="flex gap-1.5">
+      <div className="flex min-h-0 flex-1 items-center">
+        <TooltipProvider delayDuration={100}>
+          <div className="w-full overflow-x-auto">
+            <div className="inline-block min-w-0">
               <div
-                className="mr-1 flex flex-col gap-1.5 text-[10px] text-muted-foreground/70"
-                style={{ width: DAY_LABEL_OFFSET_PX - 6 }}
+                className="relative mb-2 h-4 text-[10px] uppercase tracking-wider text-muted-foreground/80"
+                style={{ marginLeft: DAY_LABEL_OFFSET_PX, width: gridWidthPx }}
               >
-                {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-                  <div key={i} className="flex h-3 items-center">
-                    {i % 2 === 1 ? d : ""}
-                  </div>
+                {monthMarkers.map(({ weekIndex, label }) => (
+                  <span
+                    key={`${label}-${weekIndex}`}
+                    className="absolute whitespace-nowrap"
+                    style={{ left: weekIndex * COL_STRIDE_PX }}
+                  >
+                    {label}
+                  </span>
                 ))}
               </div>
 
-              {columns.map((col, ci) => (
-                <div key={ci} className="flex flex-col gap-1.5">
-                  {col.map((cell, ri) => {
-                    if (cell.future) {
-                      return <div key={ri} className="h-3 w-3 rounded-[3px] bg-secondary/20" />;
-                    }
-                    const b = bucket(cell.hours);
-                    return (
-                      <Tooltip key={ri}>
-                        <TooltipTrigger asChild>
-                          <div
-                            className={`h-3 w-3 rounded-[3px] transition-transform hover:scale-110 ${BUCKET_CLASS[b]}`}
-                          />
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="rounded-lg bg-popover text-cream">
-                          <div className="text-xs">
-                            <div className="font-medium">
-                              {cell.date.toLocaleDateString(undefined, {
-                                weekday: "short",
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </div>
-                            <div className="text-muted-foreground">
-                              {cell.hours === 0 ? "No focus" : `${cell.hours.toFixed(1)}h focused`}
-                            </div>
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })}
+              <div className="flex gap-2">
+                <div
+                  className="mr-1 flex flex-col gap-2 text-[10px] text-muted-foreground/70"
+                  style={{ width: DAY_LABEL_OFFSET_PX - 8 }}
+                >
+                  {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                    <div key={i} className="flex h-4 items-center">
+                      {i % 2 === 1 ? d : ""}
+                    </div>
+                  ))}
                 </div>
-              ))}
+
+                {columns.map((col, ci) => (
+                  <div key={ci} className="flex flex-col gap-2">
+                    {col.map((cell, ri) => {
+                      if (cell.future) {
+                        return <div key={ri} className="h-4 w-4 rounded-[4px] bg-secondary/20" />;
+                      }
+                      const b = bucket(cell.hours);
+                      return (
+                        <Tooltip key={ri}>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={`h-4 w-4 rounded-[4px] transition-transform hover:scale-110 ${BUCKET_CLASS[b]}`}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="rounded-lg bg-popover text-cream">
+                            <div className="text-xs">
+                              <div className="font-medium">
+                                {cell.date.toLocaleDateString(undefined, {
+                                  weekday: "short",
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </div>
+                              <div className="text-muted-foreground">
+                                {cell.hours === 0 ? "No focus" : `${cell.hours.toFixed(1)}h focused`}
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </TooltipProvider>
+        </TooltipProvider>
+      </div>
 
       <div className="mt-4 flex items-center justify-end gap-2 text-[10px] text-muted-foreground">
         <span>Less</span>
         {[0, 1, 2, 3, 4].map((b) => (
-          <div key={b} className={`h-3 w-3 rounded-[3px] ${BUCKET_CLASS[b]}`} />
+          <div key={b} className={`h-3.5 w-3.5 rounded-[3px] ${BUCKET_CLASS[b]}`} />
         ))}
         <span>More</span>
       </div>

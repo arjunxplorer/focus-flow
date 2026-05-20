@@ -114,7 +114,10 @@ export default function Dashboard() {
           <div className="h-32 rounded-3xl shimmer-warm" />
           <div className="h-32 rounded-3xl shimmer-warm" />
         </div>
-        <div className="h-48 rounded-3xl shimmer-warm" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="min-h-[320px] rounded-3xl shimmer-warm" />
+          <div className="min-h-[320px] rounded-3xl shimmer-warm" />
+        </div>
       </div>
     );
   }
@@ -153,23 +156,27 @@ export default function Dashboard() {
             />
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
             <FocusHeatmap sessions={sessions} />
-          </div>
 
-          <div className="mt-4 rounded-3xl bg-card p-6 shadow-amber">
-            <div className="mb-1 flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold text-cream">By section</h2>
-              <span className="text-xs text-muted-foreground">Hours focused</span>
+            <div className="flex h-full min-h-[320px] flex-col rounded-3xl bg-card p-6 shadow-amber">
+              <div className="mb-1 flex items-baseline justify-between gap-2">
+                <h2 className="text-lg font-semibold text-cream">By section</h2>
+                <span className="text-xs text-muted-foreground">Hours focused</span>
+              </div>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Hours are counted from completed timer sessions only.
+              </p>
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
+                {perSection.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground">
+                    No sections yet — create one in the sidebar.
+                  </p>
+                ) : (
+                  <SectionDonut data={perSection} />
+                )}
+              </div>
             </div>
-            <p className="mb-6 text-xs text-muted-foreground">
-              Hours are counted from completed timer sessions only.
-            </p>
-            {perSection.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No sections yet — create one in the sidebar.</p>
-            ) : (
-              <SectionDonut data={perSection} />
-            )}
           </div>
         </>
       )}
