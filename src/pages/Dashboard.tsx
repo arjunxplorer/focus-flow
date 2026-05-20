@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Flame, Clock, Coffee } from "lucide-react";
+import { Flame, Clock, Coffee, ListChecks } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTimer } from "@/contexts/TimerContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +17,8 @@ export default function Dashboard() {
   const { active, remaining } = useTimer();
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState(0);
+  const [totalTasks, setTotalTasks] = useState(0);
+  const [completedTasks, setCompletedTasks] = useState(0);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [perSection, setPerSection] = useState<SectionStat[]>([]);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -26,7 +28,7 @@ export default function Dashboard() {
     if (!user) return;
     setLoading(true);
     const [tasksRes, sessionsRes, sectionsRes] = await Promise.all([
-      supabase.from("tasks").select("id,section_id,completed_at").eq("completed", true),
+      supabase.from("tasks").select("id,section_id,completed,completed_at"),
       supabase.from("focus_sessions").select("started_at,duration_seconds,task_id"),
       supabase.from("sections").select("id,name"),
     ]);
@@ -35,6 +37,8 @@ export default function Dashboard() {
     const sections = sectionsRes.data ?? [];
     setSessions(sessionRows);
 
+    setTotalTasks(tasks.length);
+    setCompletedTasks(tasks.filter((t) => t.completed).length);
     setHasAny(tasks.length > 0 || sessionRows.length > 0);
 
     // Streak: count consecutive days ending today (or yesterday) with a completed task.
@@ -64,8 +68,7 @@ export default function Dashboard() {
 
     // Per-section: map task_id -> section_id
     const taskSection = new Map<string, string | null>();
-    const allTasksRes = await supabase.from("tasks").select("id,section_id");
-    (allTasksRes.data ?? []).forEach((t) => taskSection.set(t.id, t.section_id));
+    tasks.forEach((t) => taskSection.set(t.id, t.section_id));
     const bySection = new Map<string, number>();
     sessionRows.forEach((sess) => {
       const sid = sess.task_id ? taskSection.get(sess.task_id) : null;
@@ -110,9 +113,10 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="mx-auto max-w-4xl space-y-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="h-32 rounded-3xl shimmer-warm" />
-          <div className="h-32 rounded-3xl shimmer-warm" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="h-28 rounded-3xl shimmer-warm" />
+          <div className="h-28 rounded-3xl shimmer-warm" />
+          <div className="h-28 rounded-3xl shimmer-warm" />
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="min-h-[320px] rounded-3xl shimmer-warm" />
@@ -141,7 +145,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard
               icon={<Flame className="h-5 w-5" />}
               label="Current streak"
@@ -153,6 +157,12 @@ export default function Dashboard() {
               label="Total focused"
               value={totalFocusLabel}
               hint="Across every session you've finished."
+            />
+            <StatCard
+              icon={<ListChecks className="h-5 w-5" />}
+              label="Tasks completed"
+              value={`${completedTasks}/${totalTasks}`}
+              hint="Done out of all tasks you've created."
             />
           </div>
 
@@ -186,14 +196,14 @@ export default function Dashboard() {
 
 function StatCard({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-3xl bg-card p-6 shadow-amber transition hover:bg-surface-raised">
+    <div className="rounded-3xl bg-card p-5 shadow-amber transition hover:bg-surface-raised">
       <div className="flex items-center gap-2 text-muted-foreground">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
           {icon}
         </span>
         <span className="text-xs uppercase tracking-wider">{label}</span>
       </div>
-      <div className="mt-4 text-4xl font-semibold text-cream">{value}</div>
+      <div className="mt-3 text-3xl font-semibold tabular-nums text-cream sm:text-4xl">{value}</div>
       <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
     </div>
   );
