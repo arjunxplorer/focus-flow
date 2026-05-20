@@ -20,6 +20,7 @@ import {
   enrichTaskSectionMap,
   fetchFocusSessionsForLocalDay,
   getLiveFocusElapsedForScope,
+  countTasksDoneToday,
   sumTodayFocusSeconds,
   type FocusSessionSlice,
 } from "@/lib/focusStats";
@@ -161,11 +162,15 @@ export default function Tasks() {
   );
   const todayFocusSeconds = useMemo(
     () =>
-      sumTodayFocusSeconds(todaySessions, tasks, {
+      sumTodayFocusSeconds(todaySessions, {
         sectionId: scopeSectionId,
         taskSection: taskSectionById,
       }),
-    [todaySessions, tasks, scopeSectionId, taskSectionById],
+    [todaySessions, scopeSectionId, taskSectionById],
+  );
+  const tasksDoneToday = useMemo(
+    () => countTasksDoneToday(tasks, { sectionId: scopeSectionId }),
+    [tasks, scopeSectionId],
   );
   const todayFocusLabel = formatFocusTime(todayFocusSeconds + liveElapsed);
 
@@ -215,16 +220,23 @@ export default function Tasks() {
             {currentSection ? "Filtered by section" : "Everything brewing right now."}
           </p>
           {!loading && (
-            <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-primary">
-              <Clock className="h-3.5 w-3.5" />
-              <span>
-                <span className="font-medium tabular-nums">{todayFocusLabel}</span>
-                <span className="text-muted-foreground">
-                  {currentSection
-                    ? ` focused today in ${currentSection.name}`
-                    : " focused today"}
+            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
+              <span className="inline-flex items-center gap-1.5 text-primary">
+                <Clock className="h-3.5 w-3.5" />
+                <span>
+                  <span className="font-medium tabular-nums">{todayFocusLabel}</span>
+                  <span className="text-muted-foreground">
+                    {currentSection
+                      ? ` focused today in ${currentSection.name}`
+                      : " focused today"}
+                  </span>
                 </span>
               </span>
+              {tasksDoneToday > 0 && (
+                <span className="text-muted-foreground">
+                  · {tasksDoneToday} {tasksDoneToday === 1 ? "task" : "tasks"} done
+                </span>
+              )}
             </p>
           )}
         </div>
@@ -379,7 +391,8 @@ function TaskCard({
         className={`h-9 w-9 rounded-xl ${
           isDone ? "text-primary hover:text-primary/80" : "text-muted-foreground hover:text-cream"
         }`}
-        aria-label={isDone ? "Mark incomplete" : "Mark complete"}
+        aria-label={isDone ? "Mark incomplete" : "Mark done"}
+        title={isDone ? undefined : "Marks done for streak; use Start to log focus time"}
       >
         <Check className="h-4 w-4" />
       </Button>

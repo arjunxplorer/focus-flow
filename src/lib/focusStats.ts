@@ -88,39 +88,34 @@ export function sumFocusSecondsForLocalDay(
   }, 0);
 }
 
-/**
- * Today's focus time: timer sessions (actual elapsed) plus completed tasks
- * that were finished without a timed session (e.g. checkmark only).
- * Avoids double-counting when a task already has session time logged.
- */
+/** Today's focused time from timer sessions only (matches Dashboard). */
 export function sumTodayFocusSeconds(
   sessions: FocusSessionSlice[],
-  tasks: CompletedTaskSlice[],
   options: SumTodayFocusOptions = {},
 ): number {
   const day = options.day ?? todayKey();
   const { sectionId, taskSection } = options;
 
-  const sessionSeconds = sessions.reduce((acc, s) => {
+  return sessions.reduce((acc, s) => {
     if (!sessionCountsForScope(s, day, sectionId, taskSection)) return acc;
     return acc + (s.duration_seconds ?? 0);
   }, 0);
+}
 
-  const taskIdsWithTimedSession = new Set<string>();
-  for (const s of sessions) {
-    if (!sessionCountsForScope(s, day, sectionId, taskSection) || !s.task_id) continue;
-    if ((s.duration_seconds ?? 0) > 0) taskIdsWithTimedSession.add(s.task_id);
-  }
+/** Tasks marked complete today (tick or timer); does not add focus minutes. */
+export function countTasksDoneToday(
+  tasks: CompletedTaskSlice[],
+  options: Pick<SumTodayFocusOptions, "day" | "sectionId"> = {},
+): number {
+  const day = options.day ?? todayKey();
+  const { sectionId } = options;
 
-  const fromCompletedTasks = tasks.reduce((acc, t) => {
+  return tasks.reduce((acc, t) => {
     if (!taskCountsForScope(t, sectionId)) return acc;
     if (!t.completed || !t.completed_at) return acc;
     if (localDateKey(new Date(t.completed_at)) !== day) return acc;
-    if (taskIdsWithTimedSession.has(t.id)) return acc;
-    return acc + t.duration_minutes * 60;
+    return acc + 1;
   }, 0);
-
-  return sessionSeconds + fromCompletedTasks;
 }
 
 /** In-progress timer time not yet persisted on the session row */

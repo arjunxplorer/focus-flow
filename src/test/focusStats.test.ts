@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildTaskSectionMap,
+  countTasksDoneToday,
   getLiveFocusElapsedForScope,
   sumTodayFocusSeconds,
   type CompletedTaskSlice,
@@ -23,66 +24,62 @@ function session(
   };
 }
 
-describe("sumTodayFocusSeconds section scope", () => {
+describe("sumTodayFocusSeconds", () => {
+  const sessions: FocusSessionSlice[] = [
+    session({ id: "s1", task_id: "t-work", duration_seconds: 600 }),
+    session({ id: "s2", task_id: "t-personal", duration_seconds: 300 }),
+  ];
+
+  const taskSection = buildTaskSectionMap([
+    { id: "t-work", section_id: "sec-work" },
+    { id: "t-personal", section_id: "sec-personal" },
+  ]);
+
+  it("counts session seconds only", () => {
+    expect(sumTodayFocusSeconds(sessions, { taskSection })).toBe(900);
+  });
+
+  it("filters by section", () => {
+    expect(
+      sumTodayFocusSeconds(sessions, {
+        sectionId: "sec-work",
+        taskSection,
+      }),
+    ).toBe(600);
+  });
+});
+
+describe("countTasksDoneToday", () => {
   const tasks: CompletedTaskSlice[] = [
     {
-      id: "t-work",
+      id: "t1",
       duration_minutes: 25,
       completed: true,
       completed_at: `${day}T12:00:00.000Z`,
       section_id: "sec-work",
     },
     {
-      id: "t-work-check",
-      duration_minutes: 10,
-      completed: true,
-      completed_at: `${day}T12:30:00.000Z`,
-      section_id: "sec-work",
-    },
-    {
-      id: "t-personal",
+      id: "t2",
       duration_minutes: 15,
       completed: true,
       completed_at: `${day}T13:00:00.000Z`,
       section_id: "sec-personal",
     },
     {
-      id: "t-none",
+      id: "t3",
       duration_minutes: 10,
-      completed: true,
-      completed_at: `${day}T14:00:00.000Z`,
-      section_id: null,
+      completed: false,
+      completed_at: null,
+      section_id: "sec-work",
     },
   ];
 
-  const sessions: FocusSessionSlice[] = [
-    session({ id: "s1", task_id: "t-work", duration_seconds: 600 }),
-    session({ id: "s2", task_id: "t-personal", duration_seconds: 300 }),
-  ];
-
-  const taskSection = buildTaskSectionMap(tasks);
-
-  it("sums all sections when no filter", () => {
-    // Timed tasks use session seconds only; checkmark-only adds planned duration.
-    expect(sumTodayFocusSeconds(sessions, tasks)).toBe(600 + 300 + 10 * 60 + 10 * 60);
+  it("counts completed tasks today", () => {
+    expect(countTasksDoneToday(tasks)).toBe(2);
   });
 
-  it("sums only the requested section", () => {
-    expect(
-      sumTodayFocusSeconds(sessions, tasks, {
-        sectionId: "sec-work",
-        taskSection,
-      }),
-    ).toBe(600 + 10 * 60);
-  });
-
-  it("excludes unsectioned tasks from a named section", () => {
-    expect(
-      sumTodayFocusSeconds(sessions, tasks, {
-        sectionId: "sec-personal",
-        taskSection,
-      }),
-    ).toBe(300);
+  it("filters by section", () => {
+    expect(countTasksDoneToday(tasks, { sectionId: "sec-work" })).toBe(1);
   });
 });
 
