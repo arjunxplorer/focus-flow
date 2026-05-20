@@ -1,12 +1,14 @@
 import { Pause, Play, X, Coffee } from "lucide-react";
 import { useTimer, formatTime } from "@/contexts/TimerContext";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export function ActiveTimerBanner() {
   const { active, remaining, pause, resume, stop } = useTimer();
   const navigate = useNavigate();
-  if (!active) return null;
+  const { pathname } = useLocation();
+  const onTimerPage = /^\/timer\/[^/]+$/.test(pathname);
+  if (!active || onTimerPage) return null;
 
   return (
     <div className="sticky top-0 z-40 px-4 pt-3">

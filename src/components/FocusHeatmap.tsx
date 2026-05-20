@@ -10,7 +10,7 @@ interface Props {
   sessions: Session[];
 }
 
-const WEEKS = 12;
+const WEEKS = 52;
 const DAY_MS = 86400000;
 
 function localDateKey(d: Date): string {
@@ -85,7 +85,7 @@ export function FocusHeatmap({ sessions }: Props) {
   return (
     <div className="rounded-3xl bg-card p-6 shadow-amber">
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-lg font-semibold text-cream">Last 12 weeks</h2>
+        <h2 className="text-lg font-semibold text-cream">Past year</h2>
         <span className="text-xs text-muted-foreground">Hours per day</span>
       </div>
 
@@ -95,7 +95,7 @@ export function FocusHeatmap({ sessions }: Props) {
             {/* Month labels row */}
             <div className="mb-1.5 ml-6 flex gap-1.5">
               {monthLabels.map((m, i) => (
-                <div key={i} className="w-3.5 text-[10px] uppercase tracking-wider text-muted-foreground/80">
+                <div key={i} className="w-3 text-[10px] uppercase tracking-wider text-muted-foreground/80">
                   {m ?? ""}
                 </div>
               ))}
@@ -105,23 +105,23 @@ export function FocusHeatmap({ sessions }: Props) {
               {/* Day-of-week labels */}
               <div className="mr-1 flex flex-col gap-1.5 text-[10px] text-muted-foreground/70">
                 {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-                  <div key={i} className="flex h-3.5 items-center">{i % 2 === 1 ? d : ""}</div>
+                  <div key={i} className="flex h-3 items-center">{i % 2 === 1 ? d : ""}</div>
                 ))}
               </div>
 
               {columns.map((col, ci) => (
                 <div key={ci} className="flex flex-col gap-1.5">
                   {col.map((cell, ri) => {
-                    if (!cell) return <div key={ri} className="h-3.5 w-3.5" />;
+                    if (!cell) return <div key={ri} className="h-3 w-3" />;
                     if (cell.future) {
-                      return <div key={ri} className="h-3.5 w-3.5 rounded-[3px] bg-secondary/20" />;
+                      return <div key={ri} className="h-3 w-3 rounded-[3px] bg-secondary/20" />;
                     }
                     const b = bucket(cell.hours);
                     return (
                       <Tooltip key={ri}>
                         <TooltipTrigger asChild>
                           <div
-                            className={`h-3.5 w-3.5 rounded-[3px] transition-transform hover:scale-110 ${BUCKET_CLASS[b]}`}
+                            className={`h-3 w-3 rounded-[3px] transition-transform hover:scale-110 ${BUCKET_CLASS[b]}`}
                           />
                         </TooltipTrigger>
                         <TooltipContent side="top" className="rounded-lg bg-popover text-cream">

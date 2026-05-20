@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Coffee, ListChecks, BarChart3, Clock, Plus, LogOut, Tag, Trash2 } from "lucide-react";
+import { Coffee, ListChecks, BarChart3, Clock, Plus, LogOut, Trash2 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -95,8 +95,12 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/"} className="rounded-xl data-[active=true]:bg-primary/10 data-[active=true]:text-primary">
-                  <NavLink to="/" className="flex items-center gap-3">
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/" && !activeSection}
+                  className="rounded-xl data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                >
+                  <NavLink to="/" end className="flex items-center gap-3">
                     <ListChecks className="h-4 w-4" />
                     {!collapsed && <span>Tasks</span>}
                   </NavLink>
@@ -128,16 +132,6 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={pathname === "/" && !activeSection}
-                  onClick={() => navigate("/")}
-                  className="rounded-xl data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
-                >
-                  <Tag className="h-4 w-4" />
-                  {!collapsed && <span>All tasks</span>}
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               {sections.map((s) => (
                 <SidebarMenuItem key={s.id}>
                   <SidebarMenuButton

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode, useC
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
+import { playTimerCompleteSound } from "@/lib/timerSound";
 
 interface ActiveTimer {
   taskId: string;
@@ -56,6 +57,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         })
         .eq("id", t.sessionId);
     }
+    playTimerCompleteSound();
     toast.success("Session complete — well done.", {
       description: `"${t.taskTitle}" marked done.`,
     });
@@ -167,6 +169,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         .from("tasks")
         .update({ completed: true, completed_at: new Date().toISOString() })
         .eq("id", cur.taskId);
+      playTimerCompleteSound();
       toast.success("Marked complete.");
     }
   };

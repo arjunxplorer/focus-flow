@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTimer } from "@/contexts/TimerContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { startOfLocalDayIso } from "@/lib/dates";
 
 interface Task {
   id: string;
@@ -43,18 +44,20 @@ export default function Tasks() {
   const [duration, setDuration] = useState(25);
   const [sectionId, setSectionId] = useState<string>("none");
 
+  useEffect(() => {
+    if (open && sectionFilter) setSectionId(sectionFilter);
+    else if (open && !sectionFilter) setSectionId("none");
+  }, [open, sectionFilter]);
+
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    // Today's start in user's local timezone
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startIso = startOfLocalDayIso();
     const [t, s] = await Promise.all([
       supabase
         .from("tasks")
-        .select("id,title,duration_minutes,completed,section_id,created_at")
-        .gte("created_at", startOfDay.toISOString())
-        .eq("completed", false)
+        .select("id,title,duration_minutes,completed,section_id,created_at,completed_at")
+        .or(`and(completed.eq.false,created_at.gte.${startIso}),and(completed.eq.true,completed_at.gte.${startIso})`)
         .order("created_at", { ascending: false }),
       supabase.from("sections").select("id,name"),
     ]);

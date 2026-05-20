@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Pause, Play, RotateCcw, Check } from "lucide-react";
+import { ArrowLeft, Pause, Play, RotateCcw, Check, Volume2, VolumeX } from "lucide-react";
+import { isTimerSoundMuted, setTimerSoundMuted } from "@/lib/timerSound";
 import { Button } from "@/components/ui/button";
 import { useTimer, formatTime } from "@/contexts/TimerContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +12,7 @@ export default function Timer() {
   const { active, remaining, start, pause, resume, reset, stop } = useTimer();
   const [task, setTask] = useState<{ id: string; title: string; duration_minutes: number; section_id: string | null } | null>(null);
   const [sectionName, setSectionName] = useState<string | undefined>();
+  const [soundMuted, setSoundMuted] = useState(() => isTimerSoundMuted());
 
   useEffect(() => {
     if (!taskId) return;
@@ -53,8 +55,26 @@ export default function Timer() {
 
       <div className="rounded-3xl bg-card p-8 shadow-amber-lg">
         <div className="text-center">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">
-            {sectionName ?? "Focus"}
+          <div className="flex items-center justify-center gap-2">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">
+              {sectionName ?? "Focus"}
+            </div>
+            {isThisTask && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 rounded-lg text-muted-foreground hover:text-cream"
+                onClick={() => {
+                  const next = !soundMuted;
+                  setSoundMuted(next);
+                  setTimerSoundMuted(next);
+                }}
+                aria-label={soundMuted ? "Unmute timer sound" : "Mute timer sound"}
+              >
+                {soundMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+              </Button>
+            )}
           </div>
           <h1 className="mt-1 text-2xl font-semibold text-cream">{task?.title ?? "…"}</h1>
         </div>

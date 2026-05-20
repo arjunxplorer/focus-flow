@@ -6,14 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { FocusHeatmap } from "@/components/FocusHeatmap";
 import { SectionDonut } from "@/components/SectionDonut";
 import { formatFocusTime } from "@/lib/utils";
+import { localDateKey } from "@/lib/dates";
 
 interface SectionStat { id: string; name: string; seconds: number }
 interface SessionRow { started_at: string | null; duration_seconds: number; task_id: string | null }
-
-// Returns a YYYY-MM-DD string in the user's local timezone — matches FocusHeatmap's localDateKey.
-function localDateKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 
 export default function Dashboard() {

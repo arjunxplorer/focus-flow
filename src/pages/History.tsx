@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Archive, Tag } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { dayKey, todayKey as getTodayKey } from "@/lib/dates";
 
 interface TaskRow {
   id: string;
@@ -14,12 +15,8 @@ interface TaskRow {
 }
 interface Section { id: string; name: string }
 
-function dayKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function formatGroupLabel(key: string, todayKey: string, yesterdayKey: string) {
-  if (key === todayKey) return "Today";
+function formatGroupLabel(key: string, today: string, yesterdayKey: string) {
+  if (key === today) return "Today";
   if (key === yesterdayKey) return "Yesterday";
   const [y, m, d] = key.split("-").map(Number);
   const date = new Date(y, m - 1, d);
@@ -55,15 +52,17 @@ export default function History() {
   }, [user]);
 
   const now = new Date();
-  const todayKey = dayKey(now);
+  const today = getTodayKey(now);
   const yesterdayKey = dayKey(new Date(now.getTime() - 86400000));
 
-  // Completed tasks appear here as soon as they're finished.
+  // Completed tasks move here after local midnight; today's completed stay on Tasks.
   // Incomplete tasks from earlier days stay here until you finish them.
   const historyTasks = tasks.filter((t) => {
-    if (t.completed && t.completed_at) return true;
+    if (t.completed && t.completed_at) {
+      return dayKey(new Date(t.completed_at)) < today;
+    }
     const createdKey = dayKey(new Date(t.created_at));
-    return createdKey < todayKey;
+    return createdKey < today;
   });
 
   // Group by completion date when completed, otherwise by creation date.
@@ -100,7 +99,7 @@ export default function History() {
           </div>
           <h2 className="text-lg font-semibold text-cream">Nothing here yet</h2>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Your completed sessions will appear here.
+            Completed tasks from earlier days appear here after midnight.
           </p>
         </div>
       ) : (
@@ -108,7 +107,7 @@ export default function History() {
           {sortedKeys.map((key) => (
             <section key={key}>
               <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                {formatGroupLabel(key, todayKey, yesterdayKey)}
+                {formatGroupLabel(key, today, yesterdayKey)}
               </h2>
               <div className="space-y-3">
                 {groups.get(key)!.map((t) => (

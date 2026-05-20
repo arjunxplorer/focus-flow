@@ -89,7 +89,7 @@ export function SectionDonut({ data }: { data: SectionDatum[] }) {
                 strokeLinecap="butt"
                 className={`${colorClass} cursor-pointer transition-[opacity,stroke-width] duration-150`}
                 style={{
-                  opacity: mounted ? seg.opacity * (isHover ? 1 : 1) : 0,
+                  opacity: mounted ? seg.opacity * (hoverIdx === null || isHover ? 1 : 0.35) : 0,
                   strokeDasharray: mounted ? dashArray : `0 ${circumference}`,
                   transform: `rotate(${rotation}deg)`,
                   transformOrigin: `${cx}px ${cy}px`,
@@ -123,24 +123,6 @@ export function SectionDonut({ data }: { data: SectionDatum[] }) {
           </div>
         )}
       </div>
-
-      {/* Legend */}
-      {trimmed.length > 0 && (
-        <div className="mt-6 grid w-full max-w-sm grid-cols-2 gap-x-6 gap-y-2">
-          {trimmed.map((d, i) => (
-            <div key={d.id} className="flex items-center gap-2 text-sm">
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary"
-                style={{ opacity: isZero ? 0.3 : (OPACITY_RAMP[i] ?? 0.15) }}
-              />
-              <span className={`truncate ${isZero ? "text-muted-foreground" : "text-cream"}`}>{d.name}</span>
-              <span className="ml-auto font-mono tabular-nums text-xs text-muted-foreground">
-                {formatFocusTime(d.seconds)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
