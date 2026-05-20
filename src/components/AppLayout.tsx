@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -9,8 +9,20 @@ import { InviteGate } from "./InviteGate";
 export function AppLayout({ children }: { children?: ReactNode }) {
   const { user, loading, inviteRedeemed } = useAuth();
   const location = useLocation();
+  const [inviteCheckTimedOut, setInviteCheckTimedOut] = useState(false);
 
-  if (loading || (user && inviteRedeemed === null)) {
+  useEffect(() => {
+    if (!user || inviteRedeemed !== null) {
+      setInviteCheckTimedOut(false);
+      return;
+    }
+    const id = window.setTimeout(() => setInviteCheckTimedOut(true), 8_000);
+    return () => window.clearTimeout(id);
+  }, [user, inviteRedeemed]);
+
+  const waitingOnInvite = user && inviteRedeemed === null && !inviteCheckTimedOut;
+
+  if (loading || waitingOnInvite) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-10 w-10 animate-pulse rounded-full bg-primary/30" />

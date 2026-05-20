@@ -24,16 +24,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     setInviteRedeemed(null);
-    const { data, error } = await supabase
-      .from("invites")
-      .select("code")
-      .eq("used_by", userId)
-      .maybeSingle();
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from("invites")
+        .select("code")
+        .eq("used_by", userId)
+        .maybeSingle();
+      if (error) {
+        console.error("invite check failed:", error);
+        setInviteRedeemed(false);
+        return;
+      }
+      setInviteRedeemed(!!data);
+    } catch (err) {
+      console.error("invite check failed:", err);
       setInviteRedeemed(false);
-      return;
     }
-    setInviteRedeemed(!!data);
   }, []);
 
   // After Google OAuth, redeem invite from ?invite= on `/` (avoids /auth 404 on Vercel without rewrites).

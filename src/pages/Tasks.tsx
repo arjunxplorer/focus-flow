@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Plus, Play, Check, Trash2, Coffee, Tag, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTimer } from "@/contexts/TimerContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { startOfLocalDayIso, localDateKey } from "@/lib/dates";
+import { startOfLocalDayIso } from "@/lib/dates";
+import {
+  buildTaskSectionMap,
+  enrichTaskSectionMap,
+  fetchFocusSessionsForLocalDay,
+  getLiveFocusElapsedForScope,
+  sumTodayFocusSeconds,
+  type FocusSessionSlice,
+} from "@/lib/focusStats";
 import { formatFocusTime } from "@/lib/utils";
 
 interface Task {
@@ -24,6 +32,7 @@ interface Task {
   completed: boolean;
   section_id: string | null;
   created_at?: string;
+  completed_at?: string | null;
 }
 interface Section { id: string; name: string }
 
@@ -44,73 +53,120 @@ export default function Tasks() {
   const [title, setTitle] = useState("");
   const [duration, setDuration] = useState(25);
   const [sectionId, setSectionId] = useState<string>("none");
-  const [todayFocusSeconds, setTodayFocusSeconds] = useState(0);
+  const [todaySessions, setTodaySessions] = useState<FocusSessionSlice[]>([]);
+  const [taskSectionById, setTaskSectionById] = useState<Map<string, string | null>>(
+    () => new Map(),
+  );
 
   useEffect(() => {
     if (open && sectionFilter) setSectionId(sectionFilter);
     else if (open && !sectionFilter) setSectionId("none");
   }, [open, sectionFilter]);
 
-  const loadTodayFocus = async () => {
-    if (!user) return;
+  const fetchTasksData = async () => {
     const startIso = startOfLocalDayIso();
-    const { data } = await supabase
-      .from("focus_sessions")
-      .select("started_at,duration_seconds")
-      .gte("started_at", startIso);
-    const today = localDateKey();
-    const total = (data ?? []).reduce((acc, s) => {
-      if (!s.started_at || localDateKey(new Date(s.started_at)) !== today) return acc;
-      return acc + (s.duration_seconds ?? 0);
-    }, 0);
-    setTodayFocusSeconds(total);
+    const taskSelect =
+      "id,title,duration_minutes,completed,section_id,created_at,completed_at" as const;
+
+    const [createdTodayRes, completedEarlierRes, sectionsRes, sessionsResult] =
+      await Promise.all([
+        // All tasks created today (open or done)
+        supabase
+          .from("tasks")
+          .select(taskSelect)
+          .gte("created_at", startIso)
+          .order("created_at", { ascending: false }),
+        // Tasks created before today but completed today
+        supabase
+          .from("tasks")
+          .select(taskSelect)
+          .eq("completed", true)
+          .gte("completed_at", startIso)
+          .lt("created_at", startIso)
+          .order("created_at", { ascending: false }),
+        supabase.from("sections").select("id,name"),
+        fetchFocusSessionsForLocalDay(),
+      ]);
+
+    return { createdTodayRes, completedEarlierRes, sectionsRes, sessionsResult };
   };
 
-  const load = async () => {
-    if (!user) return;
-    setLoading(true);
-    const startIso = startOfLocalDayIso();
-    const [tasksRes, sectionsRes, sessionsRes] = await Promise.all([
-      supabase
-        .from("tasks")
-        .select("id,title,duration_minutes,completed,section_id,created_at,completed_at")
-        .or(`and(completed.eq.false,created_at.gte.${startIso}),and(completed.eq.true,completed_at.gte.${startIso})`)
-        .order("created_at", { ascending: false }),
-      supabase.from("sections").select("id,name"),
-      supabase
-        .from("focus_sessions")
-        .select("started_at,duration_seconds")
-        .gte("started_at", startIso),
-    ]);
-    setTasks(tasksRes.data ?? []);
-    setSections(sectionsRes.data ?? []);
-    const today = localDateKey();
-    const sessions = sessionsRes.data ?? [];
-    setTodayFocusSeconds(
-      sessions.reduce((acc, sess) => {
-        if (!sess.started_at || localDateKey(new Date(sess.started_at)) !== today) return acc;
-        return acc + (sess.duration_seconds ?? 0);
-      }, 0),
+  const applyTasksData = async ({
+    createdTodayRes,
+    completedEarlierRes,
+    sectionsRes,
+    sessionsResult,
+  }: Awaited<ReturnType<typeof fetchTasksData>>) => {
+    if (createdTodayRes.error) toast.error(createdTodayRes.error.message);
+    if (completedEarlierRes.error) toast.error(completedEarlierRes.error.message);
+    if (sessionsResult.error) toast.error(sessionsResult.error.message);
+
+    const byId = new Map<string, Task>();
+    for (const t of [
+      ...(createdTodayRes.data ?? []),
+      ...(completedEarlierRes.data ?? []),
+    ]) {
+      byId.set(t.id, t);
+    }
+    const merged = Array.from(byId.values()).sort(
+      (a, b) =>
+        new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
     );
-    setLoading(false);
+    const sectionMap = buildTaskSectionMap(merged);
+    await enrichTaskSectionMap(sectionMap, sessionsResult.sessions);
+
+    setTasks(merged);
+    setSections(sectionsRes.data ?? []);
+    setTodaySessions(sessionsResult.sessions);
+    setTaskSectionById(sectionMap);
   };
 
-  useEffect(() => { load(); }, [user]);
+  const refresh = useCallback(async (showLoading: boolean) => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    if (showLoading) setLoading(true);
+    try {
+      await applyTasksData(await fetchTasksData());
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void refresh(true);
+  }, [refresh]);
 
   useEffect(() => {
     if (!user) return;
     const channel = supabase
       .channel("tasks-sessions")
       .on("postgres_changes", { event: "*", schema: "public", table: "focus_sessions" }, () => {
-        void loadTodayFocus();
+        void refresh(false);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => {
+        void refresh(false);
       })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [user]);
+  }, [user, refresh]);
 
   const filtered = sectionFilter ? tasks.filter((t) => t.section_id === sectionFilter) : tasks;
   const currentSection = sections.find((s) => s.id === sectionFilter);
-  const liveElapsed = active ? active.durationSeconds - remaining : 0;
+  const scopeSectionId = sectionFilter ?? undefined;
+  const liveElapsed = useMemo(
+    () => getLiveFocusElapsedForScope(active, remaining, scopeSectionId, taskSectionById),
+    [active, remaining, scopeSectionId, taskSectionById],
+  );
+  const todayFocusSeconds = useMemo(
+    () =>
+      sumTodayFocusSeconds(todaySessions, tasks, {
+        sectionId: scopeSectionId,
+        taskSection: taskSectionById,
+      }),
+    [todaySessions, tasks, scopeSectionId, taskSectionById],
+  );
   const todayFocusLabel = formatFocusTime(todayFocusSeconds + liveElapsed);
 
   const create = async () => {
@@ -123,7 +179,7 @@ export default function Tasks() {
     });
     if (error) { toast.error(error.message); return; }
     setTitle(""); setDuration(25); setSectionId("none"); setOpen(false);
-    load();
+    void refresh(false);
   };
 
   const startTask = async (t: Task) => {
@@ -140,12 +196,12 @@ export default function Tasks() {
       completed: !t.completed,
       completed_at: !t.completed ? new Date().toISOString() : null,
     }).eq("id", t.id);
-    load();
+    void refresh(false);
   };
 
   const remove = async (t: Task) => {
     await supabase.from("tasks").delete().eq("id", t.id);
-    load();
+    void refresh(false);
   };
 
   return (
@@ -163,7 +219,11 @@ export default function Tasks() {
               <Clock className="h-3.5 w-3.5" />
               <span>
                 <span className="font-medium tabular-nums">{todayFocusLabel}</span>
-                <span className="text-muted-foreground"> focused today</span>
+                <span className="text-muted-foreground">
+                  {currentSection
+                    ? ` focused today in ${currentSection.name}`
+                    : " focused today"}
+                </span>
               </span>
             </p>
           )}
