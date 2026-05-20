@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Coffee, ListChecks, BarChart3, Clock, Plus, LogOut, Trash2 } from "lucide-react";
+import { Coffee, ListChecks, BarChart3, Clock, Plus, LogOut, Trash2, X } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -48,6 +48,11 @@ export function AppSidebar() {
   };
 
   useEffect(() => { load(); }, [user]);
+
+  const cancelAdding = () => {
+    setAdding(false);
+    setName("");
+  };
 
   const addSection = async () => {
     if (!user || !name.trim()) return;
@@ -158,18 +163,28 @@ export function AppSidebar() {
               {!collapsed && (
                 <SidebarMenuItem>
                   {adding ? (
-                    <div className="flex gap-1.5 px-2 py-1">
+                    <div className="flex items-center gap-1.5 px-2 py-1">
                       <Input
                         autoFocus
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") addSection();
-                          if (e.key === "Escape") { setAdding(false); setName(""); }
+                          if (e.key === "Escape") cancelAdding();
                         }}
                         placeholder="Reading…"
-                        className="h-8 rounded-lg bg-secondary border-0"
+                        className="h-8 flex-1 rounded-lg bg-secondary border-0"
                       />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-cream"
+                        onClick={cancelAdding}
+                        aria-label="Cancel"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
                   ) : sections.length >= MAX_SECTIONS ? (
                     <TooltipProvider delayDuration={150}>
