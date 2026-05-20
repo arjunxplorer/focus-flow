@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TimerProvider } from "@/contexts/TimerContext";
 import { AppLayout } from "@/components/AppLayout";
+import { Analytics } from "@vercel/analytics/react";
 import Tasks from "./pages/Tasks";
 import Dashboard from "./pages/Dashboard";
 import History from "./pages/History";
@@ -38,6 +39,7 @@ const App = () => (
           </TimerProvider>
         </AuthProvider>
       </BrowserRouter>
+      <Analytics />
     </TooltipProvider>
   </QueryClientProvider>
 );
