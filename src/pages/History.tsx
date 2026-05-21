@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Archive, Tag } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,14 +29,21 @@ function formatTime(iso: string) {
 
 export default function History() {
   const { user } = useAuth();
+  const userId = user?.id;
+  const hasLoadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
 
   useEffect(() => {
     const load = async () => {
-      if (!user) return;
-      setLoading(true);
+      if (!userId) {
+        hasLoadedRef.current = false;
+        setLoading(false);
+        return;
+      }
+      const showLoading = !hasLoadedRef.current;
+      if (showLoading) setLoading(true);
       const [t, s] = await Promise.all([
         supabase
           .from("tasks")
@@ -46,10 +53,11 @@ export default function History() {
       ]);
       setTasks((t.data ?? []) as TaskRow[]);
       setSections(s.data ?? []);
+      hasLoadedRef.current = true;
       setLoading(false);
     };
-    load();
-  }, [user]);
+    void load();
+  }, [userId]);
 
   const now = new Date();
   const today = getTodayKey(now);

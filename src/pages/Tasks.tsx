@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Plus, Play, Check, Trash2, Coffee, Tag, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,8 @@ export default function Tasks() {
   const [taskSectionById, setTaskSectionById] = useState<Map<string, string | null>>(
     () => new Map(),
   );
+  const hasLoadedRef = useRef(false);
+  const userId = user?.id;
 
   useEffect(() => {
     if (open && sectionFilter) setSectionId(sectionFilter);
@@ -122,25 +124,28 @@ export default function Tasks() {
     setTaskSectionById(sectionMap);
   };
 
-  const refresh = useCallback(async (showLoading: boolean) => {
-    if (!user) {
+  const refresh = useCallback(async (showLoading?: boolean) => {
+    if (!userId) {
+      hasLoadedRef.current = false;
       setLoading(false);
       return;
     }
-    if (showLoading) setLoading(true);
+    const show = showLoading ?? !hasLoadedRef.current;
+    if (show) setLoading(true);
     try {
       await applyTasksData(await fetchTasksData());
+      hasLoadedRef.current = true;
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
-    void refresh(true);
+    void refresh();
   }, [refresh]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     const channel = supabase
       .channel("tasks-sessions")
       .on("postgres_changes", { event: "*", schema: "public", table: "focus_sessions" }, () => {
@@ -151,7 +156,7 @@ export default function Tasks() {
       })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [user, refresh]);
+  }, [userId, refresh]);
 
   const filtered = sectionFilter ? tasks.filter((t) => t.section_id === sectionFilter) : tasks;
   const currentSection = sections.find((s) => s.id === sectionFilter);

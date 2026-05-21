@@ -36,6 +36,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { user, signOut } = useAuth();
+  const userId = user?.id;
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const params = new URLSearchParams(search);
@@ -46,12 +47,12 @@ export function AppSidebar() {
   const [name, setName] = useState("");
 
   const load = async () => {
-    if (!user) return;
+    if (!userId) return;
     const { data } = await supabase.from("sections").select("id,name").order("created_at");
     setSections(data ?? []);
   };
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { void load(); }, [userId]);
 
   const cancelAdding = () => {
     setAdding(false);

@@ -24,9 +24,11 @@ export default function Dashboard() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [hasAny, setHasAny] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
+  const userId = user?.id;
+
+  const load = useCallback(async (showLoading = false) => {
+    if (!userId) return;
+    if (showLoading) setLoading(true);
     const [tasksRes, sessionsRes, sectionsRes] = await Promise.all([
       supabase.from("tasks").select("id,section_id,completed,completed_at"),
       supabase.from("focus_sessions").select("started_at,duration_seconds,task_id"),
@@ -81,15 +83,15 @@ export default function Dashboard() {
     setPerSection(stats);
 
     setLoading(false);
-  }, [user]);
+  }, [userId]);
 
   // Initial load
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(true); }, [load]);
 
   // Live refresh: re-fetch whenever a focus session is inserted or updated
   // (covers natural completion, manual stop, and mark-complete).
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     const channel = supabase
       .channel("dashboard-sessions")
       .on("postgres_changes", { event: "*", schema: "public", table: "focus_sessions" }, () => {
@@ -103,7 +105,7 @@ export default function Dashboard() {
       })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [user, load]);
+  }, [userId, load]);
 
   // Add elapsed time from any in-progress session. The DB row for that session
   // starts at duration_seconds=0, so this doesn't double-count.
