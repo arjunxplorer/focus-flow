@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Plus, Play, Check, Trash2, Coffee, Tag, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ const PRESETS = [15, 25, 45, 60];
 export default function Tasks() {
   const { user } = useAuth();
   const userId = user?.id;
+  const queryClient = useQueryClient();
   const active = useTimerActive();
   const { start } = useTimerActions();
   const navigate = useNavigate();
@@ -54,6 +55,12 @@ export default function Tasks() {
     else if (open && !sectionFilter) setSectionId("none");
   }, [open, sectionFilter]);
 
+  const invalidateTaskQueries = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.todayTasks(userId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.historyTasks(userId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(userId) });
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!user || !title.trim()) return;
@@ -70,6 +77,7 @@ export default function Tasks() {
       setDuration(25);
       setSectionId("none");
       setOpen(false);
+      invalidateTaskQueries();
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -82,6 +90,7 @@ export default function Tasks() {
       }).eq("id", t.id);
       if (error) throw error;
     },
+    onSuccess: invalidateTaskQueries,
     onError: (error: Error) => toast.error(error.message),
   });
 
@@ -90,6 +99,7 @@ export default function Tasks() {
       const { error } = await supabase.from("tasks").delete().eq("id", t.id);
       if (error) throw error;
     },
+    onSuccess: invalidateTaskQueries,
     onError: (error: Error) => toast.error(error.message),
   });
 
