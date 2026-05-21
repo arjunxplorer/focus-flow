@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { TimerProvider } from "@/contexts/TimerContext";
 import { AppLayout } from "@/components/AppLayout";
 import { Analytics } from "@vercel/analytics/react";
+import { queryClient } from "@/lib/queryClient";
 import Tasks from "./pages/Tasks";
 import Dashboard from "./pages/Dashboard";
 import History from "./pages/History";
@@ -14,8 +15,6 @@ import Timer from "./pages/Timer";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound.tsx";
-
-const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

@@ -167,6 +167,7 @@ export type Database = {
       generate_invite_code: { Args: never; Returns: string }
       generate_invite_codes: { Args: { _n: number }; Returns: number }
       redeem_invite: { Args: { _code: string }; Returns: Json }
+      get_dashboard_stats: { Args: Record<string, never>; Returns: Json }
     }
     Enums: {
       [_ in never]: never

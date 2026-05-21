@@ -1,3 +1,13 @@
+/** ~13 weeks + buffer for FocusHeatmap (WEEKS = 13, Sunday-aligned grid). */
+export const DASHBOARD_SESSION_LOOKBACK_DAYS = 91;
+
+export function dashboardSessionCutoffIso(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - DASHBOARD_SESSION_LOOKBACK_DAYS);
+  return d.toISOString();
+}
+
 /** Local calendar day as YYYY-MM-DD */
 export function dayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

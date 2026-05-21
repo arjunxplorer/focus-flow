@@ -1,30 +1,24 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Pause, Play, RotateCcw, Check, Volume2, VolumeX } from "lucide-react";
 import { isTimerSoundMuted, setTimerSoundMuted } from "@/lib/timerSound";
 import { Button } from "@/components/ui/button";
 import { useTimer, formatTime } from "@/contexts/TimerContext";
-import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queries/keys";
+import { fetchTaskWithSection } from "@/lib/queries/task";
 
 export default function Timer() {
   const { taskId } = useParams();
   const navigate = useNavigate();
   const { active, remaining, start, pause, resume, reset, stop } = useTimer();
-  const [task, setTask] = useState<{ id: string; title: string; duration_minutes: number; section_id: string | null } | null>(null);
-  const [sectionName, setSectionName] = useState<string | undefined>();
   const [soundMuted, setSoundMuted] = useState(() => isTimerSoundMuted());
 
-  useEffect(() => {
-    if (!taskId) return;
-    supabase.from("tasks").select("id,title,duration_minutes,section_id").eq("id", taskId).maybeSingle().then(async ({ data }) => {
-      if (!data) return;
-      setTask(data);
-      if (data.section_id) {
-        const { data: s } = await supabase.from("sections").select("name").eq("id", data.section_id).maybeSingle();
-        setSectionName(s?.name);
-      }
-    });
-  }, [taskId]);
+  const { data: task } = useQuery({
+    queryKey: queryKeys.task(taskId),
+    queryFn: () => fetchTaskWithSection(taskId!),
+    enabled: !!taskId,
+  });
 
   const isThisTask = active?.taskId === taskId;
   const total = isThisTask ? active.durationSeconds : (task?.duration_minutes ?? 25) * 60;
@@ -57,7 +51,7 @@ export default function Timer() {
         <div className="text-center">
           <div className="flex items-center justify-center gap-2">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              {sectionName ?? "Focus"}
+              {task?.section_name ?? "Focus"}
             </div>
             {isThisTask && (
               <Button

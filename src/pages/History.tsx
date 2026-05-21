@@ -1,19 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Archive, Tag } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { dayKey, todayKey as getTodayKey } from "@/lib/dates";
-
-interface TaskRow {
-  id: string;
-  title: string;
-  duration_minutes: number;
-  completed: boolean;
-  completed_at: string | null;
-  created_at: string;
-  section_id: string | null;
-}
-interface Section { id: string; name: string }
+import { useSections } from "@/hooks/useSections";
+import { queryKeys } from "@/lib/queries/keys";
+import { fetchHistoryTasks, groupHistoryTasks } from "@/lib/queries/tasks";
+import { dayKey } from "@/lib/dates";
+import type { HistoryTask } from "@/lib/queries/types";
 
 function formatGroupLabel(key: string, today: string, yesterdayKey: string) {
   if (key === today) return "Today";
@@ -30,60 +22,17 @@ function formatTime(iso: string) {
 export default function History() {
   const { user } = useAuth();
   const userId = user?.id;
-  const hasLoadedRef = useRef(false);
-  const [loading, setLoading] = useState(true);
-  const [tasks, setTasks] = useState<TaskRow[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
 
-  useEffect(() => {
-    const load = async () => {
-      if (!userId) {
-        hasLoadedRef.current = false;
-        setLoading(false);
-        return;
-      }
-      const showLoading = !hasLoadedRef.current;
-      if (showLoading) setLoading(true);
-      const [t, s] = await Promise.all([
-        supabase
-          .from("tasks")
-          .select("id,title,duration_minutes,completed,completed_at,created_at,section_id")
-          .order("created_at", { ascending: false }),
-        supabase.from("sections").select("id,name"),
-      ]);
-      setTasks((t.data ?? []) as TaskRow[]);
-      setSections(s.data ?? []);
-      hasLoadedRef.current = true;
-      setLoading(false);
-    };
-    void load();
-  }, [userId]);
-
-  const now = new Date();
-  const today = getTodayKey(now);
-  const yesterdayKey = dayKey(new Date(now.getTime() - 86400000));
-
-  // Completed tasks move here after local midnight; today's completed stay on Tasks.
-  // Incomplete tasks from earlier days stay here until you finish them.
-  const historyTasks = tasks.filter((t) => {
-    if (t.completed && t.completed_at) {
-      return dayKey(new Date(t.completed_at)) < today;
-    }
-    const createdKey = dayKey(new Date(t.created_at));
-    return createdKey < today;
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: queryKeys.historyTasks(userId),
+    queryFn: fetchHistoryTasks,
+    enabled: !!userId,
   });
 
-  // Group by completion date when completed, otherwise by creation date.
-  // This correctly buckets a task created at 11:58pm and finished at 12:02am
-  // under the day it was finished.
-  const groups = new Map<string, TaskRow[]>();
-  historyTasks.forEach((t) => {
-    const refDate = t.completed && t.completed_at ? t.completed_at : t.created_at;
-    const key = dayKey(new Date(refDate));
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(t);
-  });
-  const sortedKeys = Array.from(groups.keys()).sort((a, b) => (a < b ? 1 : -1));
+  const { data: sections = [] } = useSections();
+
+  const { groups, sortedKeys, today } = groupHistoryTasks(tasks);
+  const yesterdayKey = dayKey(new Date(Date.now() - 86400000));
 
   const sectionName = (id: string | null) => sections.find((s) => s.id === id)?.name;
 
@@ -94,7 +43,7 @@ export default function History() {
         <p className="text-sm text-muted-foreground">Every session you've brewed.</p>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="space-y-3">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="h-[78px] rounded-2xl shimmer-warm" />
@@ -130,7 +79,7 @@ export default function History() {
   );
 }
 
-function HistoryCard({ task, section }: { task: TaskRow; section?: string }) {
+function HistoryCard({ task, section }: { task: HistoryTask; section?: string }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl bg-card/70 px-4 py-3.5 shadow-amber opacity-90">
       <div className="min-w-0 flex-1">

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Plus, Play, Check, Trash2, Coffee, Tag, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,186 +11,100 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { TodayFocusLabel } from "@/components/LiveFocusTime";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTimer } from "@/contexts/TimerContext";
+import { useTimerActions, useTimerActive } from "@/contexts/TimerContext";
+import { useSections } from "@/hooks/useSections";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queries/keys";
+import { fetchTodayTasksData } from "@/lib/queries/tasks";
+import type { Task } from "@/lib/queries/types";
+import { countTasksDoneToday } from "@/lib/focusStats";
 import { toast } from "sonner";
-import { startOfLocalDayIso } from "@/lib/dates";
-import {
-  buildTaskSectionMap,
-  enrichTaskSectionMap,
-  fetchFocusSessionsForLocalDay,
-  getLiveFocusElapsedForScope,
-  countTasksDoneToday,
-  sumTodayFocusSeconds,
-  type FocusSessionSlice,
-} from "@/lib/focusStats";
-import { formatFocusTime } from "@/lib/utils";
-
-interface Task {
-  id: string;
-  title: string;
-  duration_minutes: number;
-  completed: boolean;
-  section_id: string | null;
-  created_at?: string;
-  completed_at?: string | null;
-}
-interface Section { id: string; name: string }
 
 const PRESETS = [15, 25, 45, 60];
 
 export default function Tasks() {
   const { user } = useAuth();
-  const { active, start, remaining } = useTimer();
+  const userId = user?.id;
+  const active = useTimerActive();
+  const { start } = useTimerActions();
   const navigate = useNavigate();
   const params = new URLSearchParams(useLocation().search);
   const sectionFilter = params.get("section");
 
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
+  const { data: sections = [] } = useSections();
+  const { data, isLoading } = useQuery({
+    queryKey: queryKeys.todayTasks(userId),
+    queryFn: fetchTodayTasksData,
+    enabled: !!userId,
+  });
 
+  const tasks = data?.tasks ?? [];
+  const todaySessions = data?.todaySessions ?? [];
+  const taskSectionById = data?.taskSectionById ?? new Map<string, string | null>();
+
+  const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [duration, setDuration] = useState(25);
   const [sectionId, setSectionId] = useState<string>("none");
-  const [todaySessions, setTodaySessions] = useState<FocusSessionSlice[]>([]);
-  const [taskSectionById, setTaskSectionById] = useState<Map<string, string | null>>(
-    () => new Map(),
-  );
-  const hasLoadedRef = useRef(false);
-  const userId = user?.id;
 
   useEffect(() => {
     if (open && sectionFilter) setSectionId(sectionFilter);
     else if (open && !sectionFilter) setSectionId("none");
   }, [open, sectionFilter]);
 
-  const fetchTasksData = async () => {
-    const startIso = startOfLocalDayIso();
-    const taskSelect =
-      "id,title,duration_minutes,completed,section_id,created_at,completed_at" as const;
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      if (!user || !title.trim()) return;
+      const { error } = await supabase.from("tasks").insert({
+        user_id: user.id,
+        title: title.trim(),
+        duration_minutes: duration,
+        section_id: sectionId === "none" ? null : sectionId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setTitle("");
+      setDuration(25);
+      setSectionId("none");
+      setOpen(false);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
-    const [createdTodayRes, completedEarlierRes, sectionsRes, sessionsResult] =
-      await Promise.all([
-        // All tasks created today (open or done)
-        supabase
-          .from("tasks")
-          .select(taskSelect)
-          .gte("created_at", startIso)
-          .order("created_at", { ascending: false }),
-        // Tasks created before today but completed today
-        supabase
-          .from("tasks")
-          .select(taskSelect)
-          .eq("completed", true)
-          .gte("completed_at", startIso)
-          .lt("created_at", startIso)
-          .order("created_at", { ascending: false }),
-        supabase.from("sections").select("id,name"),
-        fetchFocusSessionsForLocalDay(),
-      ]);
+  const completeMutation = useMutation({
+    mutationFn: async (t: Task) => {
+      const { error } = await supabase.from("tasks").update({
+        completed: !t.completed,
+        completed_at: !t.completed ? new Date().toISOString() : null,
+      }).eq("id", t.id);
+      if (error) throw error;
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
-    return { createdTodayRes, completedEarlierRes, sectionsRes, sessionsResult };
-  };
-
-  const applyTasksData = async ({
-    createdTodayRes,
-    completedEarlierRes,
-    sectionsRes,
-    sessionsResult,
-  }: Awaited<ReturnType<typeof fetchTasksData>>) => {
-    if (createdTodayRes.error) toast.error(createdTodayRes.error.message);
-    if (completedEarlierRes.error) toast.error(completedEarlierRes.error.message);
-    if (sessionsResult.error) toast.error(sessionsResult.error.message);
-
-    const byId = new Map<string, Task>();
-    for (const t of [
-      ...(createdTodayRes.data ?? []),
-      ...(completedEarlierRes.data ?? []),
-    ]) {
-      byId.set(t.id, t);
-    }
-    const merged = Array.from(byId.values()).sort(
-      (a, b) =>
-        new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
-    );
-    const sectionMap = buildTaskSectionMap(merged);
-    await enrichTaskSectionMap(sectionMap, sessionsResult.sessions);
-
-    setTasks(merged);
-    setSections(sectionsRes.data ?? []);
-    setTodaySessions(sessionsResult.sessions);
-    setTaskSectionById(sectionMap);
-  };
-
-  const refresh = useCallback(async (showLoading?: boolean) => {
-    if (!userId) {
-      hasLoadedRef.current = false;
-      setLoading(false);
-      return;
-    }
-    const show = showLoading ?? !hasLoadedRef.current;
-    if (show) setLoading(true);
-    try {
-      await applyTasksData(await fetchTasksData());
-      hasLoadedRef.current = true;
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    if (!userId) return;
-    const channel = supabase
-      .channel("tasks-sessions")
-      .on("postgres_changes", { event: "*", schema: "public", table: "focus_sessions" }, () => {
-        void refresh(false);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => {
-        void refresh(false);
-      })
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [userId, refresh]);
+  const deleteMutation = useMutation({
+    mutationFn: async (t: Task) => {
+      const { error } = await supabase.from("tasks").delete().eq("id", t.id);
+      if (error) throw error;
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const filtered = sectionFilter ? tasks.filter((t) => t.section_id === sectionFilter) : tasks;
   const currentSection = sections.find((s) => s.id === sectionFilter);
   const scopeSectionId = sectionFilter ?? undefined;
-  const liveElapsed = useMemo(
-    () => getLiveFocusElapsedForScope(active, remaining, scopeSectionId, taskSectionById),
-    [active, remaining, scopeSectionId, taskSectionById],
-  );
-  const todayFocusSeconds = useMemo(
-    () =>
-      sumTodayFocusSeconds(todaySessions, {
-        sectionId: scopeSectionId,
-        taskSection: taskSectionById,
-      }),
-    [todaySessions, scopeSectionId, taskSectionById],
-  );
+
   const tasksDoneToday = useMemo(
     () => countTasksDoneToday(tasks, { sectionId: scopeSectionId }),
     [tasks, scopeSectionId],
   );
-  const todayFocusLabel = formatFocusTime(todayFocusSeconds + liveElapsed);
 
-  const create = async () => {
+  const create = () => {
     if (!user || !title.trim()) return;
-    const { error } = await supabase.from("tasks").insert({
-      user_id: user.id,
-      title: title.trim(),
-      duration_minutes: duration,
-      section_id: sectionId === "none" ? null : sectionId,
-    });
-    if (error) { toast.error(error.message); return; }
-    setTitle(""); setDuration(25); setSectionId("none"); setOpen(false);
-    void refresh(false);
+    createMutation.mutate();
   };
 
   const startTask = async (t: Task) => {
@@ -199,19 +114,6 @@ export default function Tasks() {
     }
     await start(t.id, t.title, t.duration_minutes);
     navigate(`/timer/${t.id}`);
-  };
-
-  const complete = async (t: Task) => {
-    await supabase.from("tasks").update({
-      completed: !t.completed,
-      completed_at: !t.completed ? new Date().toISOString() : null,
-    }).eq("id", t.id);
-    void refresh(false);
-  };
-
-  const remove = async (t: Task) => {
-    await supabase.from("tasks").delete().eq("id", t.id);
-    void refresh(false);
   };
 
   return (
@@ -224,12 +126,16 @@ export default function Tasks() {
           <p className="text-sm text-muted-foreground">
             {currentSection ? "Filtered by section" : "Everything brewing right now."}
           </p>
-          {!loading && (
+          {!isLoading && (
             <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
               <span className="inline-flex items-center gap-1.5 text-primary">
                 <Clock className="h-3.5 w-3.5" />
                 <span>
-                  <span className="font-medium tabular-nums">{todayFocusLabel}</span>
+                  <TodayFocusLabel
+                    todaySessions={todaySessions}
+                    taskSectionById={taskSectionById}
+                    sectionId={scopeSectionId}
+                  />
                   <span className="text-muted-foreground">
                     {currentSection
                       ? ` focused today in ${currentSection.name}`
@@ -317,7 +223,7 @@ export default function Tasks() {
         </Dialog>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-[78px] rounded-2xl shimmer-warm" />
@@ -333,8 +239,8 @@ export default function Tasks() {
               task={t}
               section={sections.find((s) => s.id === t.section_id)?.name}
               onStart={() => startTask(t)}
-              onComplete={() => complete(t)}
-              onDelete={() => remove(t)}
+              onComplete={() => completeMutation.mutate(t)}
+              onDelete={() => deleteMutation.mutate(t)}
             />
           ))}
         </div>

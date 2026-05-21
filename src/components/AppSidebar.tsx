@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Coffee, ListChecks, BarChart3, Clock, Plus, LogOut, Trash2, X } from "lucide-react";
 import {
@@ -10,6 +11,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
@@ -18,7 +20,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSections } from "@/hooks/useSections";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queries/keys";
+import type { Section } from "@/lib/queries/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -27,10 +32,7 @@ const expandedNavClass = "flex w-full items-center gap-3";
 
 const MAX_SECTIONS = 6;
 
-export interface Section {
-  id: string;
-  name: string;
-}
+export type { Section };
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -38,21 +40,18 @@ export function AppSidebar() {
   const { user, signOut } = useAuth();
   const userId = user?.id;
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { pathname, search } = useLocation();
   const params = new URLSearchParams(search);
   const activeSection = params.get("section");
 
-  const [sections, setSections] = useState<Section[]>([]);
+  const { data: sections = [] } = useSections();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
 
-  const load = async () => {
-    if (!userId) return;
-    const { data } = await supabase.from("sections").select("id,name").order("created_at");
-    setSections(data ?? []);
+  const invalidateSections = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sections(userId) });
   };
-
-  useEffect(() => { void load(); }, [userId]);
 
   const cancelAdding = () => {
     setAdding(false);
@@ -75,13 +74,13 @@ export function AppSidebar() {
     } else {
       setName("");
       setAdding(false);
-      load();
+      invalidateSections();
     }
   };
 
   const deleteSection = async (id: string) => {
     await supabase.from("sections").delete().eq("id", id);
-    load();
+    invalidateSections();
   };
 
   return (
@@ -151,18 +150,19 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     isActive={activeSection === s.id}
                     onClick={() => navigate(`/?section=${s.id}`)}
-                    className="group rounded-xl data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                    className="rounded-xl data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
                   >
                     <span className="h-2 w-2 rounded-full bg-primary/70" />
                     <span className="flex-1 truncate">{s.name}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteSection(s.id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      aria-label="Delete section"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                    </button>
                   </SidebarMenuButton>
+                  <SidebarMenuAction
+                    showOnHover
+                    onClick={() => void deleteSection(s.id)}
+                    className="rounded-lg text-muted-foreground hover:text-destructive"
+                    aria-label="Delete section"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </SidebarMenuAction>
                 </SidebarMenuItem>
               ))}
                 <SidebarMenuItem>
@@ -173,7 +173,7 @@ export function AppSidebar() {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") addSection();
+                          if (e.key === "Enter") void addSection();
                           if (e.key === "Escape") cancelAdding();
                         }}
                         placeholder="Reading…"

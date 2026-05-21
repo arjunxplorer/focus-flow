@@ -1,118 +1,23 @@
-import { useEffect, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Flame, Clock, Coffee, ListChecks } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useTimer } from "@/contexts/TimerContext";
-import { supabase } from "@/integrations/supabase/client";
+import { DashboardTotalFocus } from "@/components/LiveFocusTime";
 import { FocusHeatmap } from "@/components/FocusHeatmap";
 import { SectionDonut } from "@/components/SectionDonut";
-import { formatFocusTime } from "@/lib/utils";
-import { localDateKey } from "@/lib/dates";
-
-interface SectionStat { id: string; name: string; seconds: number }
-interface SessionRow { started_at: string | null; duration_seconds: number; task_id: string | null }
-
+import { useAuth } from "@/contexts/AuthContext";
+import { queryKeys } from "@/lib/queries/keys";
+import { fetchDashboardStats } from "@/lib/queries/dashboard";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { active, remaining } = useTimer();
-  const [loading, setLoading] = useState(true);
-  const [streak, setStreak] = useState(0);
-  const [totalTasks, setTotalTasks] = useState(0);
-  const [completedTasks, setCompletedTasks] = useState(0);
-  const [totalSeconds, setTotalSeconds] = useState(0);
-  const [perSection, setPerSection] = useState<SectionStat[]>([]);
-  const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [hasAny, setHasAny] = useState(false);
-
   const userId = user?.id;
 
-  const load = useCallback(async (showLoading = false) => {
-    if (!userId) return;
-    if (showLoading) setLoading(true);
-    const [tasksRes, sessionsRes, sectionsRes] = await Promise.all([
-      supabase.from("tasks").select("id,section_id,completed,completed_at"),
-      supabase.from("focus_sessions").select("started_at,duration_seconds,task_id"),
-      supabase.from("sections").select("id,name"),
-    ]);
-    const tasks = tasksRes.data ?? [];
-    const sessionRows = (sessionsRes.data ?? []) as SessionRow[];
-    const sections = sectionsRes.data ?? [];
-    setSessions(sessionRows);
+  const { data, isLoading } = useQuery({
+    queryKey: queryKeys.dashboard(userId),
+    queryFn: fetchDashboardStats,
+    enabled: !!userId,
+  });
 
-    setTotalTasks(tasks.length);
-    setCompletedTasks(tasks.filter((t) => t.completed).length);
-    setHasAny(tasks.length > 0 || sessionRows.length > 0);
-
-    // Streak: count consecutive days ending today (or yesterday) with a completed task.
-    // Uses local timezone dates so a task completed at 11 PM locally is counted for that
-    // local day, not the next UTC day.
-    const days = new Set<string>();
-    tasks.forEach((t) => {
-      if (t.completed_at) days.add(localDateKey(new Date(t.completed_at)));
-    });
-    let s = 0;
-    const now = new Date();
-    const today = localDateKey(now);
-    const yesterday = localDateKey(new Date(now.getTime() - 86_400_000));
-    let cursor = days.has(today) ? new Date(now) : days.has(yesterday) ? new Date(now.getTime() - 86_400_000) : null;
-    while (cursor) {
-      const key = localDateKey(cursor);
-      if (days.has(key)) {
-        s++;
-        cursor = new Date(cursor.getTime() - 86_400_000);
-      } else break;
-    }
-    setStreak(s);
-
-    // Total seconds — includes all started sessions (elapsed time is real focus time).
-    const total = sessionRows.reduce((acc, x) => acc + (x.duration_seconds ?? 0), 0);
-    setTotalSeconds(total);
-
-    // Per-section: map task_id -> section_id
-    const taskSection = new Map<string, string | null>();
-    tasks.forEach((t) => taskSection.set(t.id, t.section_id));
-    const bySection = new Map<string, number>();
-    sessionRows.forEach((sess) => {
-      const sid = sess.task_id ? taskSection.get(sess.task_id) : null;
-      if (!sid) return;
-      bySection.set(sid, (bySection.get(sid) ?? 0) + (sess.duration_seconds ?? 0));
-    });
-    const stats: SectionStat[] = sections
-      .map((sec) => ({ id: sec.id, name: sec.name, seconds: bySection.get(sec.id) ?? 0 }))
-      .sort((a, b) => b.seconds - a.seconds);
-    setPerSection(stats);
-
-    setLoading(false);
-  }, [userId]);
-
-  // Initial load
-  useEffect(() => { void load(true); }, [load]);
-
-  // Live refresh: re-fetch whenever a focus session is inserted or updated
-  // (covers natural completion, manual stop, and mark-complete).
-  useEffect(() => {
-    if (!userId) return;
-    const channel = supabase
-      .channel("dashboard-sessions")
-      .on("postgres_changes", { event: "*", schema: "public", table: "focus_sessions" }, () => {
-        void load();
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tasks" }, () => {
-        void load();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "sections" }, () => {
-        void load();
-      })
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [userId, load]);
-
-  // Add elapsed time from any in-progress session. The DB row for that session
-  // starts at duration_seconds=0, so this doesn't double-count.
-  const liveElapsed = active ? active.durationSeconds - remaining : 0;
-  const totalFocusLabel = formatFocusTime(totalSeconds + liveElapsed);
-
-  if (loading) {
+  if (isLoading || !data) {
     return (
       <div className="mx-auto max-w-4xl space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -127,6 +32,16 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  const {
+    streak,
+    totalTasks,
+    completedTasks,
+    totalSeconds,
+    hasAny,
+    sessions,
+    perSection,
+  } = data;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -157,7 +72,7 @@ export default function Dashboard() {
             <StatCard
               icon={<Clock className="h-5 w-5" />}
               label="Total focused"
-              value={totalFocusLabel}
+              value={<DashboardTotalFocus baseSeconds={totalSeconds} />}
               hint="Across every session you've finished."
             />
             <StatCard
@@ -196,7 +111,17 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint: string }) {
+function StatCard({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  hint: string;
+}) {
   return (
     <div className="rounded-3xl bg-card p-5 shadow-amber transition hover:bg-surface-raised">
       <div className="flex items-center gap-2 text-muted-foreground">

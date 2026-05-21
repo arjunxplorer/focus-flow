@@ -1,22 +1,29 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  ReactNode,
+  useCallback,
+  useMemo,
+} from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 import { playTimerCompleteSound } from "@/lib/timerSound";
 
-interface ActiveTimer {
+export interface ActiveTimer {
   taskId: string;
   taskTitle: string;
   durationSeconds: number;
-  endsAt: number; // epoch ms
+  endsAt: number;
   paused: boolean;
   pausedRemaining?: number;
   sessionId?: string;
 }
 
-interface TimerContextValue {
-  active: ActiveTimer | null;
-  remaining: number; // seconds
+interface TimerActionsValue {
   start: (taskId: string, title: string, minutes: number) => Promise<void>;
   pause: () => void;
   resume: () => void;
@@ -24,7 +31,9 @@ interface TimerContextValue {
   stop: (markCompleted?: boolean) => Promise<void>;
 }
 
-const TimerContext = createContext<TimerContextValue | undefined>(undefined);
+const TimerActiveContext = createContext<ActiveTimer | null>(null);
+const TimerRemainingContext = createContext(0);
+const TimerActionsContext = createContext<TimerActionsValue | undefined>(undefined);
 
 /** Seconds actually spent on the timer (excludes remaining time). */
 export function getWorkedSeconds(cur: ActiveTimer, remainingSeconds?: number): number {
@@ -41,15 +50,16 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const [active, setActive] = useState<ActiveTimer | null>(null);
   const [remaining, setRemaining] = useState(0);
 
-  // Refs that always hold the latest values — safe to read inside callbacks
-  // without stale-closure issues.
   const activeRef = useRef<ActiveTimer | null>(null);
   const userRef = useRef(user);
-  // Guards against the natural-completion handler firing more than once.
   const completingRef = useRef(false);
 
-  useEffect(() => { userRef.current = user; }, [user]);
-  useEffect(() => { activeRef.current = active; }, [active]);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user?.id]);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
 
   const completeNaturally = useCallback(async (t: ActiveTimer) => {
     if (!userRef.current) return;
@@ -73,8 +83,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Tick reads from activeRef so it never has a stale closure, and all state
-  // updates happen outside the setActive updater (pure function requirement).
   const tick = useCallback(() => {
     const cur = activeRef.current;
     if (!cur) return;
@@ -101,7 +109,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(id);
   }, [tick]);
 
-  const start = async (taskId: string, title: string, minutes: number) => {
+  const start = useCallback(async (taskId: string, title: string, minutes: number) => {
     if (!userRef.current) return;
     const seconds = minutes * 60;
     const { data: sess } = await supabase
@@ -125,34 +133,37 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     };
     setActive(timer);
     setRemaining(seconds);
-  };
+  }, []);
 
-  const pause = () => {
+  const pause = useCallback(() => {
     setActive((cur) => {
       if (!cur || cur.paused) return cur;
       const r = Math.max(0, Math.round((cur.endsAt - Date.now()) / 1000));
       return { ...cur, paused: true, pausedRemaining: r };
     });
-  };
+  }, []);
 
-  const resume = () => {
+  const resume = useCallback(() => {
     setActive((cur) => {
       if (!cur || !cur.paused) return cur;
       const r = cur.pausedRemaining ?? 0;
       return { ...cur, paused: false, pausedRemaining: undefined, endsAt: Date.now() + r * 1000 };
     });
-  };
+  }, []);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     const cur = activeRef.current;
     if (!cur) return;
-    setActive({ ...cur, paused: true, pausedRemaining: cur.durationSeconds, endsAt: Date.now() + cur.durationSeconds * 1000 });
+    setActive({
+      ...cur,
+      paused: true,
+      pausedRemaining: cur.durationSeconds,
+      endsAt: Date.now() + cur.durationSeconds * 1000,
+    });
     setRemaining(cur.durationSeconds);
-  };
+  }, []);
 
-  const stop = async (markCompleted = false) => {
-    // Read from the ref so we always get the latest active, even if a
-    // natural-completion tick just set the state version to null.
+  const stop = useCallback(async (markCompleted = false) => {
     const cur = activeRef.current;
     setActive(null);
     setRemaining(0);
@@ -180,19 +191,44 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       playTimerCompleteSound();
       toast.success("Marked complete.");
     }
-  };
+  }, []);
+
+  const actions = useMemo(
+    () => ({ start, pause, resume, reset, stop }),
+    [start, pause, resume, reset, stop],
+  );
 
   return (
-    <TimerContext.Provider value={{ active, remaining, start, pause, resume, reset, stop }}>
-      {children}
-    </TimerContext.Provider>
+    <TimerActionsContext.Provider value={actions}>
+      <TimerActiveContext.Provider value={active}>
+        <TimerRemainingContext.Provider value={remaining}>
+          {children}
+        </TimerRemainingContext.Provider>
+      </TimerActiveContext.Provider>
+    </TimerActionsContext.Provider>
   );
 }
 
-export function useTimer() {
-  const ctx = useContext(TimerContext);
-  if (!ctx) throw new Error("useTimer must be used within TimerProvider");
+export function useTimerActions() {
+  const ctx = useContext(TimerActionsContext);
+  if (!ctx) throw new Error("useTimerActions must be used within TimerProvider");
   return ctx;
+}
+
+export function useTimerActive() {
+  return useContext(TimerActiveContext);
+}
+
+export function useTimerRemaining() {
+  return useContext(TimerRemainingContext);
+}
+
+/** Full timer state — prefer narrow hooks on list pages to avoid tick re-renders. */
+export function useTimer() {
+  const active = useTimerActive();
+  const remaining = useTimerRemaining();
+  const actions = useTimerActions();
+  return { active, remaining, ...actions };
 }
 
 export function formatTime(s: number) {

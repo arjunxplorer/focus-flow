@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { ActiveTimerBanner } from "./ActiveTimerBanner";
@@ -8,6 +9,7 @@ import { InviteGate } from "./InviteGate";
 
 export function AppLayout({ children }: { children?: ReactNode }) {
   const { user, loading, inviteRedeemed } = useAuth();
+  useRealtimeSync();
   const location = useLocation();
   const [inviteCheckTimedOut, setInviteCheckTimedOut] = useState(false);
 
