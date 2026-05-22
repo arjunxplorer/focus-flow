@@ -29,7 +29,7 @@ export default function Tasks() {
   const userId = user?.id;
   const queryClient = useQueryClient();
   const active = useTimerActive();
-  const { start } = useTimerActions();
+  const { start, stop } = useTimerActions();
   const navigate = useNavigate();
   const params = new URLSearchParams(useLocation().search);
   const sectionFilter = params.get("section");
@@ -99,7 +99,10 @@ export default function Tasks() {
       const { error } = await supabase.from("tasks").delete().eq("id", t.id);
       if (error) throw error;
     },
-    onSuccess: invalidateTaskQueries,
+    onSuccess: (_data, t) => {
+      if (active?.taskId === t.id) void stop(false);
+      invalidateTaskQueries();
+    },
     onError: (error: Error) => toast.error(error.message),
   });
 

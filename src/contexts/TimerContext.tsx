@@ -12,16 +12,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 import { playTimerCompleteSound } from "@/lib/timerSound";
+import {
+  type ActiveTimer,
+  clearPersistedTimer,
+  fetchActiveTimerFromDb,
+  getTimerRemainingSeconds,
+  persistedToActive,
+  readPersistedTimer,
+  writePersistedTimer,
+} from "@/lib/timerStorage";
 
-export interface ActiveTimer {
-  taskId: string;
-  taskTitle: string;
-  durationSeconds: number;
-  endsAt: number;
-  paused: boolean;
-  pausedRemaining?: number;
-  sessionId?: string;
-}
+export type { ActiveTimer } from "@/lib/timerStorage";
 
 interface TimerActionsValue {
   start: (taskId: string, title: string, minutes: number) => Promise<void>;
@@ -49,6 +50,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [active, setActive] = useState<ActiveTimer | null>(null);
   const [remaining, setRemaining] = useState(0);
+  const [hydrated, setHydrated] = useState(false);
 
   const activeRef = useRef<ActiveTimer | null>(null);
   const userRef = useRef(user);
@@ -82,6 +84,72 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       description: `"${t.taskTitle}" marked done.`,
     });
   }, []);
+
+  const finishExpiredTimer = useCallback(async (timer: ActiveTimer) => {
+    clearPersistedTimer();
+    setActive(null);
+    setRemaining(0);
+    await completeNaturally(timer);
+  }, [completeNaturally]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setHydrated(false);
+      setActive(null);
+      setRemaining(0);
+      return;
+    }
+
+    let cancelled = false;
+    setHydrated(false);
+
+    const restore = async () => {
+      try {
+        const persisted = readPersistedTimer();
+        if (persisted) {
+          if (persisted.userId !== user.id) {
+            clearPersistedTimer();
+          } else {
+            const timer = persistedToActive(persisted);
+            if (!timer.paused && timer.endsAt <= Date.now()) {
+              if (!cancelled) await finishExpiredTimer(timer);
+              return;
+            }
+            if (!cancelled) {
+              setActive(timer);
+              setRemaining(getTimerRemainingSeconds(timer));
+            }
+            return;
+          }
+        }
+
+        const fromDb = await fetchActiveTimerFromDb(user.id);
+        if (cancelled || !fromDb) return;
+
+        if (fromDb.endsAt <= Date.now()) {
+          await finishExpiredTimer(fromDb);
+          return;
+        }
+
+        setActive(fromDb);
+        setRemaining(getTimerRemainingSeconds(fromDb));
+        writePersistedTimer(fromDb, user.id);
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    };
+
+    void restore();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, finishExpiredTimer]);
+
+  useEffect(() => {
+    if (!user?.id || !hydrated) return;
+    if (active) writePersistedTimer(active, user.id);
+    else clearPersistedTimer();
+  }, [active, user?.id, hydrated]);
 
   const tick = useCallback(() => {
     const cur = activeRef.current;

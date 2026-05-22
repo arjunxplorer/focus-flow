@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Pause, Play, RotateCcw, Check, Volume2, VolumeX } from "lucide-react";
@@ -14,11 +14,19 @@ export default function Timer() {
   const { active, remaining, start, pause, resume, reset, stop } = useTimer();
   const [soundMuted, setSoundMuted] = useState(() => isTimerSoundMuted());
 
-  const { data: task } = useQuery({
+  const { data: task, isLoading, isFetched } = useQuery({
     queryKey: queryKeys.task(taskId),
     queryFn: () => fetchTaskWithSection(taskId!),
     enabled: !!taskId,
   });
+
+  useEffect(() => {
+    if (!taskId || isLoading || !isFetched) return;
+    if (!task && active?.taskId === taskId) {
+      void stop(false);
+      navigate("/");
+    }
+  }, [taskId, task, isLoading, isFetched, active?.taskId, stop, navigate]);
 
   const isThisTask = active?.taskId === taskId;
   const total = isThisTask ? active.durationSeconds : (task?.duration_minutes ?? 25) * 60;
