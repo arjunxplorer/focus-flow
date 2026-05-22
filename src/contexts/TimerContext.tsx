@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 import { playTimerCompleteSound } from "@/lib/timerSound";
+import { useTimerDocumentTitle } from "@/hooks/useTimerDocumentTitle";
 import {
   type ActiveTimer,
   clearPersistedTimer,
@@ -21,6 +22,11 @@ import {
   readPersistedTimer,
   writePersistedTimer,
 } from "@/lib/timerStorage";
+
+function TimerDocumentTitle() {
+  useTimerDocumentTitle();
+  return null;
+}
 
 export type { ActiveTimer } from "@/lib/timerStorage";
 
@@ -270,6 +276,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     <TimerActionsContext.Provider value={actions}>
       <TimerActiveContext.Provider value={active}>
         <TimerRemainingContext.Provider value={remaining}>
+          <TimerDocumentTitle />
           {children}
         </TimerRemainingContext.Provider>
       </TimerActiveContext.Provider>

@@ -1,4 +1,10 @@
 const MUTE_KEY = "focus-flow-timer-sound-muted";
+const MUTE_CHANGE_EVENT = "focus-flow-timer-sound-muted-change";
+
+export function subscribeTimerSoundMuted(onChange: () => void): () => void {
+  window.addEventListener(MUTE_CHANGE_EVENT, onChange);
+  return () => window.removeEventListener(MUTE_CHANGE_EVENT, onChange);
+}
 
 export function isTimerSoundMuted(): boolean {
   try {
@@ -11,6 +17,7 @@ export function isTimerSoundMuted(): boolean {
 export function setTimerSoundMuted(muted: boolean): void {
   try {
     localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
+    window.dispatchEvent(new Event(MUTE_CHANGE_EVENT));
   } catch {
     /* ignore */
   }
